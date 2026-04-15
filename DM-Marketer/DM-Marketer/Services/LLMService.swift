@@ -36,7 +36,7 @@ enum LLMError: LocalizedError {
 // MARK: - Mock (ships by default, no llama.cpp needed)
 
 final class MockLLMService: LLMService {
-    var isModelLoaded: Bool = true
+    var isModelLoaded: Bool = false
 
     func loadModel(at url: URL) async throws {
         try await Task.sleep(for: .milliseconds(300))
@@ -59,14 +59,9 @@ final class MockLLMService: LLMService {
     }
 
     private static func buildMockResponse(systemPrompt: String, lastUserMessage: String) -> String {
-        // Produce a varied response each time so the mock feels alive.
-        let responses = [
-            "Hey! I came across your post and it really struck a chord — I actually built something specifically for this. It's called out in the link below and I'd genuinely love to know what you think.",
-            "Just saw your post and had to reach out. I went through the exact same frustration, which is why I ended up building an app to fix it. Would love for you to give it a shot!",
-            "Your post caught my eye because I've been there too. I spent months building a solution for this — it's still early but people seem to love it. Here's the link if you're curious!",
-        ]
-        return responses.randomElement()!
+        return "This is a placeholder. Install a local model in the Models tab to generate real AI-written DMs."
     }
+
 }
 
 // MARK: - LlamaCppService stub (ready for real integration)

@@ -39,7 +39,7 @@ final class ChatViewModel {
     /// Called when a chat is opened fresh. Fires the LLM without showing
     /// "Generate a personalized DM for this person." as a user message.
     func autoGenerateFirstDM(chat: Chat, topic: Topic, context: ModelContext) {
-        guard chat.messages.isEmpty, !isGenerating else { return }
+        guard chat.messages.isEmpty, !isGenerating, llmService.isModelLoaded else { return }
 
         let systemPrompt = PromptBuilder.systemPrompt(topic: topic, chat: chat)
         let seed = [ChatMessage(role: .user, content: PromptBuilder.firstUserMessage())]

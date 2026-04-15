@@ -99,7 +99,7 @@ class ShareViewController: UIViewController {
 
     private func openMainApp(text: String, sourceURL: String, platform: String) {
         // Encode the post into a dmmarketer://share URL.
-        // The main app reads these query params and shows the topic picker.
+        // URLComponents handles percent-encoding automatically for query items.
         var components = URLComponents()
         components.scheme   = "dmmarketer"
         components.host     = "share"
@@ -114,8 +114,11 @@ class ShareViewController: UIViewController {
             return
         }
 
-        extensionContext?.open(url) { [weak self] _ in
-            self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+        // Use a small delay to ensure the main app gets the URL before extension closes.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.extensionContext?.open(url) { [weak self] _ in
+                self?.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+            }
         }
     }
 }

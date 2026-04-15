@@ -26,6 +26,10 @@ struct ChatView: View {
 
             messagesScrollView
             Divider()
+            if !topic.link.isEmpty {
+                LinkCopyBar(link: topic.link)
+                Divider()
+            }
             quickActionsBar
             inputBar
         }
@@ -42,12 +46,39 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Empty state
+
+    private var noModelEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "cpu.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+            Text("No model loaded")
+                .font(.headline)
+            Text("Go to the Models tab to download a local AI model. Once loaded, come back here and tap Generate.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            Button("Generate DM") {
+                viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!appState.llmService.isModelLoaded)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 60)
+    }
+
     // MARK: - Messages
 
     private var messagesScrollView: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
+                    if chat.sortedMessages.isEmpty && !viewModel.isGenerating && !appState.llmService.isModelLoaded {
+                        noModelEmptyState
+                    }
                     ForEach(chat.sortedMessages) { message in
                         MessageBubble(message: message, platform: chat.sourcePlatform)
                             .id(message.id)
@@ -223,6 +254,45 @@ private struct ContextBanner: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+        .background(Color(.systemGray6))
+    }
+}
+
+// MARK: - Link Copy Bar
+
+private struct LinkCopyBar: View {
+    let link: String
+    @State private var copied = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "link")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Text(link)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                UIPasteboard.general.string = link
+                copied = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    copied = false
+                }
+            } label: {
+                Text(copied ? "Copied!" : "Copy")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(copied ? .green : .blue)
+            }
+            .buttonStyle(.plain)
+            .animation(.easeInOut(duration: 0.2), value: copied)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
         .background(Color(.systemGray6))
     }
 }

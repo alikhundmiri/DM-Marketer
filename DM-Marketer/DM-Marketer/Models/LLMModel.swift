@@ -66,6 +66,32 @@ extension LLMModel {
     /// Hard-coded catalog of small GGUF models that run on iPhone.
     /// These are the model IDs — the app checks which ones are in SwiftData and syncs.
     static var catalog: [CatalogEntry] { [
+
+        // MARK: Gemma 4 (2025) — recommended
+        CatalogEntry(
+            id: "gemma-4-e2b-q4",
+            displayName: "Gemma 4 E2B",
+            modelDescription: "Google's newest efficient 2B model. Best-in-class writing quality at this size. Recommended starting point for DM generation.",
+            repoID: "lmstudio-community/gemma-4-E2B-it-GGUF",
+            filename: "gemma-4-E2B-it-Q4_K_M.gguf",
+            downloadURL: "https://huggingface.co/lmstudio-community/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf",
+            sizeBytes: 3_430_000_000,
+            parameterLabel: "2B",
+            quantLabel: "Q4_K_M"
+        ),
+        CatalogEntry(
+            id: "gemma-4-e4b-q4",
+            displayName: "Gemma 4 E4B",
+            modelDescription: "Google's efficient 4B model. Noticeably more natural and contextual DMs than the 2B. Requires iPhone 15 Pro or later (8 GB RAM).",
+            repoID: "lmstudio-community/gemma-4-E4B-it-GGUF",
+            filename: "gemma-4-E4B-it-Q4_K_M.gguf",
+            downloadURL: "https://huggingface.co/lmstudio-community/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
+            sizeBytes: 5_340_000_000,
+            parameterLabel: "4B",
+            quantLabel: "Q4_K_M"
+        ),
+
+        // MARK: Gemma 3 (2024)
         CatalogEntry(
             id: "gemma-3-1b-q4",
             displayName: "Gemma 3 1B",
@@ -77,6 +103,8 @@ extension LLMModel {
             parameterLabel: "1B",
             quantLabel: "Q4_K_M"
         ),
+
+        // MARK: Other models
         CatalogEntry(
             id: "llama-3.2-1b-q8",
             displayName: "Llama 3.2 1B",
