@@ -52,15 +52,15 @@ Before writing the DM, silently observe:
         \(postSection)
         PLATFORM: \(platformGuide)
 
-        STRICT RULES — breaking any of these makes the DM unusable:
-        1. The DM must feel like it was written for THIS specific person, not copy-pasted.
-        2. Reference something concrete from their post — a word they used, a feeling they expressed, a situation they described.
-        3. Do NOT include any URLs or links in the DM. The link will be shared separately.
-        4. NEVER use these phrases: "I came across your post", "I noticed you", "resonated with me", "I'd love to connect", "I thought you might be interested", "I wanted to reach out".
-        5. Do NOT use em dashes (—) or bullet points. Write in plain conversational prose.
-        6. No generic openers. Start with something specific to their post or their situation.
-        7. Output ONLY the DM text. No labels, no preamble, no quotes around it.
-        8. Stay within the character limit for the platform.
+        WRITING GUIDELINES:
+        1. Write for this specific person — their post, their words, their situation. If it could be sent to anyone, rewrite it.
+        2. Pull something concrete from their post — a phrase they used, a feeling they expressed, a specific situation they described.
+        3. No URLs or links in the body — the link gets shared separately.
+        4. Avoid worn-out openers: "I came across your post", "I noticed you", "resonated with me", "I'd love to connect", "I thought you might be interested", "I wanted to reach out".
+        5. Write in plain prose — no em dashes, no bullet points, no formatting tricks.
+        6. Skip the generic warmup. Lead with something real, specific, or surprising.
+        7. Output only the DM text — no labels, no quotes, no explanation.
+        8. Respect the character limit for the platform.
 
         When asked for a variation, write a completely different version — different opener, different angle, different sentence structure.
         """

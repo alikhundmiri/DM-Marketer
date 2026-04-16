@@ -137,10 +137,12 @@ struct ModelsView: View {
                         modelContext.insert(new)
                         record = new
                     }
-                    // Auto-set as default if none is set yet
+                    // Auto-set as default and load if none is set yet
                     if savedModels.filter({ $0.isDefault }).isEmpty {
                         record.isDefault = true
-                        appState.activeModelName = record.displayName
+                        if let url = record.localURL {
+                            await appState.loadModel(at: url, displayName: record.displayName)
+                        }
                     }
 
                 case .failed(let error):
@@ -153,9 +155,12 @@ struct ModelsView: View {
 
     private func setDefault(_ id: String) {
         savedModels.forEach { $0.isDefault = false }
-        if let model = savedModels.first(where: { $0.id == id }) {
+        if let model = savedModels.first(where: { $0.id == id }),
+           let url = model.localURL {
             model.isDefault = true
-            appState.activeModelName = model.displayName
+            Task {
+                await appState.loadModel(at: url, displayName: model.displayName)
+            }
         }
     }
 
@@ -166,9 +171,13 @@ struct ModelsView: View {
     }
 
     private func confirmDelete(_ entry: LLMModel.CatalogEntry) {
+        let wasDefault = savedModels.first(where: { $0.id == entry.id })?.isDefault == true
         try? downloader.deleteModel(filename: entry.filename)
         if let saved = savedModels.first(where: { $0.id == entry.id }) {
             modelContext.delete(saved)
+        }
+        if wasDefault {
+            appState.unloadModel()
         }
     }
 }

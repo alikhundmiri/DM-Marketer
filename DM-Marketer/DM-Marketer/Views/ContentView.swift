@@ -1,7 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
+    @Query(filter: #Predicate<LLMModel> { $0.isDefault == true && $0.isDownloaded == true })
+    private var defaultModels: [LLMModel]
 
     var body: some View {
         TabView {
@@ -13,6 +16,10 @@ struct ContentView: View {
         }
         .sheet(item: pendingShareBinding) { share in
             PendingShareTopicPickerView(share: share.share)
+        }
+        .task(id: defaultModels.first?.id) {
+            guard let model = defaultModels.first, let url = model.localURL else { return }
+            await appState.loadModel(at: url, displayName: model.displayName)
         }
     }
 

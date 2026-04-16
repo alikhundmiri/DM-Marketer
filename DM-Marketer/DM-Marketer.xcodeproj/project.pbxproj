@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0A23426A2F8CA3DF00E53B5D /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0A2342602F8CA3DD00E53B5D /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0A99E4BF2F90382F0004D368 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; };
+		0A99E4C02F90382F0004D368 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,6 +48,17 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A99E4C12F90382F0004D368 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				0A99E4C02F90382F0004D368 /* llama.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +66,7 @@
 		0A2342152F8BD7AE00E53B5D /* DM-MarketerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DM-MarketerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A23421F2F8BD7AE00E53B5D /* DM-MarketerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DM-MarketerUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A2342602F8CA3DD00E53B5D /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A99E4BD2F9038080004D368 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = llama.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -106,6 +120,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0A99E4BF2F90382F0004D368 /* llama.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,6 +151,7 @@
 		0A2341FD2F8BD7AA00E53B5D = {
 			isa = PBXGroup;
 			children = (
+				0A99E4BD2F9038080004D368 /* llama.xcframework */,
 				0A2342082F8BD7AA00E53B5D /* DM-Marketer */,
 				0A2342182F8BD7AE00E53B5D /* DM-MarketerTests */,
 				0A2342222F8BD7AE00E53B5D /* DM-MarketerUITests */,
@@ -166,6 +182,7 @@
 				0A2342032F8BD7AA00E53B5D /* Frameworks */,
 				0A2342042F8BD7AA00E53B5D /* Resources */,
 				0A23426F2F8CA3DF00E53B5D /* Embed Foundation Extensions */,
+				0A99E4C12F90382F0004D368 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -285,6 +302,8 @@
 			);
 			mainGroup = 0A2341FD2F8BD7AA00E53B5D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0A2342072F8BD7AA00E53B5D /* Products */;
 			projectDirPath = "";
@@ -505,12 +524,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "DM-Marketer/DM-Marketer.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				ENABLE_PREVIEWS = YES;
+				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "DM-Marketer/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -521,6 +544,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alikhundmiri.DM-Marketer";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -538,12 +562,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "DM-Marketer/DM-Marketer.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				ENABLE_PREVIEWS = YES;
+				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "DM-Marketer/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -554,6 +582,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alikhundmiri.DM-Marketer";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -653,9 +682,11 @@
 		0A23426D2F8CA3DF00E53B5D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
+				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
@@ -666,6 +697,9 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				"MTL_ENABLE_DEBUG_INFO[arch=*]" = NO;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alikhundmiri.DM-Marketer.ShareExtension";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -681,9 +715,11 @@
 		0A23426E2F8CA3DF00E53B5D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
+				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
@@ -694,6 +730,8 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alikhundmiri.DM-Marketer.ShareExtension";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

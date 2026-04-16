@@ -64,7 +64,7 @@ struct ChatView: View {
                 viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!appState.llmService.isModelLoaded)
+            .disabled(!appState.isModelLoaded)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -76,7 +76,7 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    if chat.sortedMessages.isEmpty && !viewModel.isGenerating && !appState.llmService.isModelLoaded {
+                    if chat.sortedMessages.isEmpty && !viewModel.isGenerating && !appState.isModelLoaded {
                         noModelEmptyState
                     }
                     ForEach(chat.sortedMessages) { message in
@@ -180,11 +180,13 @@ struct ChatView: View {
 // MARK: - Quick Actions
 
 private enum QuickAction: String, CaseIterable, Identifiable {
-    case tryAgain      = "try_again"
-    case shorter       = "shorter"
-    case moreCasual    = "more_casual"
+    case tryAgain         = "try_again"
+    case shorter          = "shorter"
+    case moreCasual       = "more_casual"
     case moreProfessional = "more_professional"
-    case addQuestion   = "add_question"
+    case addQuestion      = "add_question"
+    case lessSalesy       = "less_salesy"
+    case moreEmpathetic   = "more_empathetic"
 
     var id: String { rawValue }
 
@@ -192,19 +194,30 @@ private enum QuickAction: String, CaseIterable, Identifiable {
         switch self {
         case .tryAgain:           return "↺ Try again"
         case .shorter:            return "↓ Shorter"
-        case .moreCasual:         return "😊 More casual"
-        case .moreProfessional:   return "💼 More professional"
-        case .addQuestion:        return "? Add a question"
+        case .moreCasual:         return "More casual"
+        case .moreProfessional:   return "More professional"
+        case .addQuestion:        return "Add a question"
+        case .lessSalesy:         return "Less salesy"
+        case .moreEmpathetic:     return "More empathetic"
         }
     }
 
     var prompt: String {
         switch self {
-        case .tryAgain:           return "Generate a completely different DM for this person."
-        case .shorter:            return "Rewrite the DM but make it shorter."
-        case .moreCasual:         return "Rewrite the DM with a more casual, friendly tone."
-        case .moreProfessional:   return "Rewrite the DM with a more professional tone."
-        case .addQuestion:        return "Rewrite the DM and end it with a genuine question that invites a reply."
+        case .tryAgain:
+            return "Generate a completely different DM for this person — different opener, different angle, different structure."
+        case .shorter:
+            return "Rewrite the DM but make it shorter. Cut anything that isn't doing real work."
+        case .moreCasual:
+            return "Rewrite the DM with a more casual, relaxed tone — like you're texting someone you kind of know."
+        case .moreProfessional:
+            return "Rewrite the DM with a more professional, peer-to-peer tone. Warm but composed."
+        case .addQuestion:
+            return "Rewrite the DM and close with a genuine question that invites a reply — not a yes/no, something open."
+        case .lessSalesy:
+            return "Rewrite the DM to be less salesy. Focus on their situation and your shared experience, not the product."
+        case .moreEmpathetic:
+            return "Rewrite the DM to lead with more empathy — acknowledge what they're going through before anything else."
         }
     }
 
@@ -215,6 +228,8 @@ private enum QuickAction: String, CaseIterable, Identifiable {
         case .moreCasual:         return .green
         case .moreProfessional:   return .indigo
         case .addQuestion:        return .purple
+        case .lessSalesy:         return .teal
+        case .moreEmpathetic:     return .pink
         }
     }
 }
