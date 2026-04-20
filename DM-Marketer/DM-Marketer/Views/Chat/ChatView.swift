@@ -55,11 +55,19 @@ struct ChatView: View {
                 .foregroundStyle(.secondary)
             Text("No model loaded")
                 .font(.headline)
-            Text("Go to the Models tab to download a local AI model. Once loaded, come back here and tap Generate.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            if let err = appState.loadModelError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            } else {
+                Text("Go to the Models tab to download a local AI model. Once loaded, come back here and tap Generate.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
             Button("Generate DM") {
                 viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
             }

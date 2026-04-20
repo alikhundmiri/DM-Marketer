@@ -17,10 +17,12 @@ struct ModelsView: View {
         NavigationStack {
             List {
                 activeModelSection
+                slowModelWarningSection
                 catalogSection
                 footerSection
             }
             .navigationTitle("Models")
+            .task { reconcileDownloads() }
             .confirmationDialog(
                 "Delete model?",
                 isPresented: Binding(
@@ -69,6 +71,35 @@ struct ModelsView: View {
         }
     }
 
+    /// Shows a warning + delete prompt when the active model is ≥ 1B params and is slow on older iPhones.
+    @ViewBuilder
+    private var slowModelWarningSection: some View {
+        if let active = savedModels.first(where: { $0.isDefault && $0.isDownloaded }),
+           active.sizeBytes >= 700_000_000 {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("This model is slow on iPhone 13 and older", systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.orange)
+
+                    Text("Delete it and download SmolLM2 360M or Qwen 2.5 0.5B — both generate DMs in 2–4 seconds instead of 30+.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Button(role: .destructive) {
+                        if let entry = LLMModel.catalog.first(where: { $0.id == active.id }) {
+                            entryPendingDelete = entry
+                        }
+                    } label: {
+                        Label("Delete \(active.displayName)", systemImage: "trash")
+                            .font(.subheadline.weight(.medium))
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
     private var catalogSection: some View {
         Section("Available Models") {
             ForEach(LLMModel.catalog, id: \.id) { entry in
@@ -96,6 +127,45 @@ struct ModelsView: View {
     }
 
     // MARK: - Actions
+
+    /// Scan the Models directory and mark any files that exist as downloaded.
+    /// Handles the case where a background download completed while the app was suspended/killed.
+    private func reconcileDownloads() {
+        for entry in LLMModel.catalog {
+            let fileURL = ModelDownloadService.modelsDirectory.appendingPathComponent(entry.filename)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else { continue }
+
+            if let saved = savedModels.first(where: { $0.id == entry.id }) {
+                if !saved.isDownloaded {
+                    saved.isDownloaded = true
+                    saved.downloadedAt = Date()
+                }
+            } else {
+                let new = LLMModel(
+                    id: entry.id,
+                    displayName: entry.displayName,
+                    modelDescription: entry.modelDescription,
+                    repoID: entry.repoID,
+                    filename: entry.filename,
+                    downloadURL: entry.downloadURL,
+                    sizeBytes: entry.sizeBytes,
+                    parameterLabel: entry.parameterLabel,
+                    quantLabel: entry.quantLabel
+                )
+                new.isDownloaded = true
+                new.downloadedAt = Date()
+                modelContext.insert(new)
+            }
+        }
+        // Auto-set first downloaded model as default if nothing is default yet
+        if savedModels.filter({ $0.isDefault }).isEmpty,
+           let first = savedModels.first(where: { $0.isDownloaded }) {
+            first.isDefault = true
+            if let url = first.localURL, !appState.isModelLoaded {
+                Task { await appState.loadModel(at: url, displayName: first.displayName) }
+            }
+        }
+    }
 
     private func startDownload(_ entry: LLMModel.CatalogEntry) {
         downloadingIDs.insert(entry.id)

@@ -10,6 +10,7 @@
 		0A23426A2F8CA3DF00E53B5D /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0A2342602F8CA3DD00E53B5D /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0A99E4BF2F90382F0004D368 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; };
 		0A99E4C02F90382F0004D368 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		0A99E4C32F9097C30004D368 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -121,6 +122,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0A99E4BF2F90382F0004D368 /* llama.xcframework in Frameworks */,
+				0A99E4C32F9097C30004D368 /* llama.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -156,6 +158,7 @@
 				0A2342182F8BD7AE00E53B5D /* DM-MarketerTests */,
 				0A2342222F8BD7AE00E53B5D /* DM-MarketerUITests */,
 				0A2342612F8CA3DE00E53B5D /* ShareExtension */,
+				0A99E4C22F9097C30004D368 /* Frameworks */,
 				0A2342072F8BD7AA00E53B5D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -169,6 +172,13 @@
 				0A2342602F8CA3DD00E53B5D /* ShareExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0A99E4C22F9097C30004D368 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

@@ -1,8 +1,27 @@
 import SwiftUI
 import SwiftData
+import UIKit
+
+// MARK: - AppDelegate
+
+/// Receives the background URLSession completion handler from iOS.
+/// Without this, iOS throttles or cancels future background downloads.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        ModelDownloadService.shared.backgroundCompletionHandler = completionHandler
+    }
+}
+
+// MARK: - App
 
 @main
 struct DM_MarketerApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     // @State is correct for @Observable objects (not @StateObject, which is for ObservableObject)
     @State private var appState = AppState()
 
@@ -28,6 +47,10 @@ struct DM_MarketerApp: App {
                 .environment(appState)
                 .onOpenURL { url in
                     handleIncomingURL(url)
+                }
+                .task {
+                    // Reconnect to any background download tasks that survived a restart
+                    ModelDownloadService.shared.reconnect()
                 }
         }
         .modelContainer(sharedModelContainer)

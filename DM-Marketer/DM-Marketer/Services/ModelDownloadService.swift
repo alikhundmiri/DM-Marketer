@@ -2,16 +2,16 @@ import Foundation
 
 enum DownloadEvent {
     case progress(Double)   // 0.0 – 1.0
-    case completed(URL)
+    case completed
     case failed(Error)
 }
 
-/// Thread-safe download manager. No @MainActor — delegate callbacks must move
-/// the temp file synchronously before URLSession cleans it up.
+/// Thread-safe download manager using a background URLSession so downloads
+/// continue even when the app is suspended or killed by the OS.
 final class ModelDownloadService: NSObject {
     static let shared = ModelDownloadService()
 
-    /// Where downloaded .gguf files are stored. Same path used by LLMModel.modelsDirectory.
+    /// Where downloaded .gguf files are stored. Matches LLMModel.modelsDirectory.
     static var modelsDirectory: URL {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let dir  = docs.appendingPathComponent("Models", isDirectory: true)
@@ -19,16 +19,36 @@ final class ModelDownloadService: NSObject {
         return dir
     }
 
-    private let lock = NSLock()
-    private var continuations:    [String: AsyncStream<DownloadEvent>.Continuation] = [:]
-    private var pendingFilenames: [String: String] = [:]
+    /// Set by AppDelegate.application(_:handleEventsForBackgroundURLSession:completionHandler:).
+    /// Must be called on the main queue after all background events are handled.
+    var backgroundCompletionHandler: (() -> Void)?
 
+    private let lock = NSLock()
+    private var continuations: [String: AsyncStream<DownloadEvent>.Continuation] = [:]
+
+    // pendingFilenames is persisted to UserDefaults so the modelID→filename
+    // mapping survives app restarts (the background daemon keeps the task alive).
+    private static let pendingKey = "com.alikhundmiri.dm-marketer.pendingDownloads"
+    private var pendingFilenames: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: Self.pendingKey) as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: Self.pendingKey) }
+    }
+
+    // Background URLSession — the OS keeps downloads running even after the app is killed.
+    // Using the same identifier reconnects to in-progress tasks on relaunch.
     private lazy var session: URLSession = {
-        // delegateQueue nil → callbacks on URLSession's internal serial queue
-        URLSession(configuration: .default, delegate: self, delegateQueue: nil)
+        let config = URLSessionConfiguration.background(
+            withIdentifier: "com.alikhundmiri.dm-marketer.download"
+        )
+        config.sessionSendsLaunchEvents = true   // iOS can relaunch app when download finishes
+        config.isDiscretionary = false           // don't defer to low-power/low-traffic windows
+        return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
 
     // MARK: - Public API
+
+    /// Call once at app launch to reconnect to any background tasks that survived a restart.
+    func reconnect() { _ = session }
 
     func download(modelID: String, from urlString: String, filename: String) -> AsyncStream<DownloadEvent> {
         AsyncStream { continuation in
@@ -37,11 +57,13 @@ final class ModelDownloadService: NSObject {
                 continuation.finish()
                 return
             }
-            lock.withLock {
-                self.continuations[modelID]    = continuation
-                self.pendingFilenames[modelID] = filename
+            self.lock.withLock {
+                self.continuations[modelID] = continuation
+                var pending = self.pendingFilenames
+                pending[modelID] = filename
+                self.pendingFilenames = pending
             }
-            let task = session.downloadTask(with: url)
+            let task = self.session.downloadTask(with: url)
             task.taskDescription = modelID
             task.resume()
         }
@@ -87,36 +109,43 @@ extension ModelDownloadService: URLSessionDownloadDelegate {
     ) {
         guard let modelID = downloadTask.taskDescription else { return }
 
-        // ⚠️ Move the file SYNCHRONOUSLY right here.
-        // URLSession deletes `location` the moment this method returns —
-        // dispatching to another queue/actor means the file is already gone.
+        // Recover the filename — may come from UserDefaults if the app was relaunched.
         let filename = lock.withLock { pendingFilenames[modelID] }
         guard let filename else { return }
 
+        // ⚠️ Move SYNCHRONOUSLY — URLSession deletes `location` the moment this returns.
         let dest = Self.modelsDirectory.appendingPathComponent(filename)
-        let result: Result<URL, Error>
+        let moveResult: Result<Void, Error>
         do {
             if FileManager.default.fileExists(atPath: dest.path) {
                 try FileManager.default.removeItem(at: dest)
             }
             try FileManager.default.moveItem(at: location, to: dest)
-            result = .success(dest)
+            moveResult = .success(())
         } catch {
-            result = .failure(error)
+            moveResult = .failure(error)
         }
 
+        // Clean up persisted state and grab the continuation (may be nil after relaunch).
         let continuation = lock.withLock {
+            var pending = self.pendingFilenames
+            pending.removeValue(forKey: modelID)
+            self.pendingFilenames = pending
             let c = continuations[modelID]
-            continuations[modelID]    = nil
-            pendingFilenames[modelID] = nil
+            continuations[modelID] = nil
             return c
         }
 
-        switch result {
-        case .success(let url): continuation?.yield(.completed(url))
-        case .failure(let err): continuation?.yield(.failed(err))
+        switch moveResult {
+        case .success:
+            continuation?.yield(.completed)
+            continuation?.finish()
+            // If the app was relaunched from background there's no live continuation.
+            // ModelsView.reconcileDownloads() will detect the file on next appear.
+        case .failure(let error):
+            continuation?.yield(.failed(error))
+            continuation?.finish()
         }
-        continuation?.finish()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -128,5 +157,14 @@ extension ModelDownloadService: URLSessionDownloadDelegate {
         }
         continuation?.yield(.failed(error))
         continuation?.finish()
+    }
+
+    /// Called when all background events have been delivered.
+    /// Must invoke backgroundCompletionHandler so iOS knows we're done.
+    func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        DispatchQueue.main.async {
+            self.backgroundCompletionHandler?()
+            self.backgroundCompletionHandler = nil
+        }
     }
 }

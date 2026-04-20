@@ -30,6 +30,9 @@ final class AppState {
 
     // MARK: - Helpers
 
+    /// Non-empty when the last loadModel call failed. Cleared on success.
+    var loadModelError: String?
+
     /// Load a model file into the service. Updates both the service flag and the observable flag.
     @MainActor
     func loadModel(at url: URL, displayName: String) async {
@@ -37,8 +40,10 @@ final class AppState {
             try await llmService.loadModel(at: url)
             isModelLoaded = true
             activeModelName = displayName
+            loadModelError = nil
         } catch {
             isModelLoaded = false
+            loadModelError = error.localizedDescription
         }
     }
 

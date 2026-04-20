@@ -202,8 +202,11 @@ final class LlamaCppService: LLMService {
         let vocab = llama_model_get_vocab(model)
         let prompt = try buildPrompt(model: model, systemPrompt: systemPrompt, history: history)
 
-        // Clear the KV cache before each generation
-        llama_memory_clear(llama_get_memory(context), false)
+        // Clear the KV cache before each generation.
+        // llama_get_memory can return nil on some xcframework builds — guard before passing.
+        if let mem = llama_get_memory(context) {
+            llama_memory_clear(mem, false)
+        }
 
         let nCtx = Int(llama_n_ctx(context))
         var tokens = [llama_token](repeating: 0, count: nCtx)
@@ -233,7 +236,9 @@ final class LlamaCppService: LLMService {
 
         // Sampler chain
         let sparams = llama_sampler_chain_default_params()
-        let sampler = llama_sampler_chain_init(sparams)!
+        guard let sampler = llama_sampler_chain_init(sparams) else {
+            throw LLMError.generationFailed("Failed to create sampler chain")
+        }
         defer { llama_sampler_free(sampler) }
         llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40))
         llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.95, 1))

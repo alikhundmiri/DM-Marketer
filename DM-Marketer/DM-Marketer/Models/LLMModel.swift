@@ -63,79 +63,57 @@ final class LLMModel {
 // MARK: - Catalog
 
 extension LLMModel {
-    /// Hard-coded catalog of small GGUF models that run on iPhone.
-    /// These are the model IDs — the app checks which ones are in SwiftData and syncs.
+    /// Hard-coded catalog of small GGUF models.
+    /// Ordered from fastest to slowest. Models above 1B are too slow for iPhone 13 and older.
     static var catalog: [CatalogEntry] { [
 
-        // MARK: Gemma 4 (2025) — recommended
+        // MARK: Sub-500M — recommended for iPhone 13 and older
+
         CatalogEntry(
-            id: "gemma-4-e2b-q4",
-            displayName: "Gemma 4 E2B",
-            modelDescription: "Google's newest efficient 2B model. Best-in-class writing quality at this size. Recommended starting point for DM generation.",
-            repoID: "lmstudio-community/gemma-4-E2B-it-GGUF",
-            filename: "gemma-4-E2B-it-Q4_K_M.gguf",
-            downloadURL: "https://huggingface.co/lmstudio-community/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf",
-            sizeBytes: 3_430_000_000,
-            parameterLabel: "2B",
+            id: "smollm2-135m-q4",
+            displayName: "SmolLM2 135M",
+            modelDescription: "Smallest available model. Generates in under a second on any iPhone. DM quality is simple but instant — good for trying the app.",
+            repoID: "HuggingFaceTB/SmolLM2-135M-Instruct-GGUF",
+            filename: "smollm2-135m-instruct-q4_k_m.gguf",
+            downloadURL: "https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct-GGUF/resolve/main/smollm2-135m-instruct-q4_k_m.gguf",
+            sizeBytes: 90_000_000,
+            parameterLabel: "135M",
             quantLabel: "Q4_K_M"
         ),
         CatalogEntry(
-            id: "gemma-4-e4b-q4",
-            displayName: "Gemma 4 E4B",
-            modelDescription: "Google's efficient 4B model. Noticeably more natural and contextual DMs than the 2B. Requires iPhone 15 Pro or later (8 GB RAM).",
-            repoID: "lmstudio-community/gemma-4-E4B-it-GGUF",
-            filename: "gemma-4-E4B-it-Q4_K_M.gguf",
-            downloadURL: "https://huggingface.co/lmstudio-community/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
-            sizeBytes: 5_340_000_000,
-            parameterLabel: "4B",
+            id: "smollm2-360m-q4",
+            displayName: "SmolLM2 360M",
+            modelDescription: "Best choice for iPhone 13 and older. Fast generation (2–4 seconds), good DM quality. Recommended starting point.",
+            repoID: "HuggingFaceTB/SmolLM2-360M-Instruct-GGUF",
+            filename: "smollm2-360m-instruct-q4_k_m.gguf",
+            downloadURL: "https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/main/smollm2-360m-instruct-q4_k_m.gguf",
+            sizeBytes: 230_000_000,
+            parameterLabel: "360M",
+            quantLabel: "Q4_K_M"
+        ),
+        CatalogEntry(
+            id: "qwen2.5-0.5b-q4",
+            displayName: "Qwen 2.5 0.5B",
+            modelDescription: "Alibaba's compact instruct model. Noticeably better writing than 360M, still smooth on iPhone 13. Good everyday choice.",
+            repoID: "bartowski/Qwen2.5-0.5B-Instruct-GGUF",
+            filename: "Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
+            downloadURL: "https://huggingface.co/bartowski/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct-Q4_K_M.gguf",
+            sizeBytes: 395_000_000,
+            parameterLabel: "0.5B",
             quantLabel: "Q4_K_M"
         ),
 
-        // MARK: Gemma 3 (2024)
+        // MARK: 1B — usable on iPhone 14 Pro+, slow on iPhone 13
+
         CatalogEntry(
             id: "gemma-3-1b-q4",
             displayName: "Gemma 3 1B",
-            modelDescription: "Google's fastest on-device model. Great for quick DM drafts with minimal battery impact.",
+            modelDescription: "Best DM quality in this catalog, but slow on iPhone 13 (15–30 sec/generation). Recommended for iPhone 14 Pro or newer.",
             repoID: "lmstudio-community/gemma-3-1b-it-GGUF",
             filename: "gemma-3-1b-it-Q4_K_M.gguf",
             downloadURL: "https://huggingface.co/lmstudio-community/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
             sizeBytes: 772_000_000,
             parameterLabel: "1B",
-            quantLabel: "Q4_K_M"
-        ),
-
-        // MARK: Other models
-        CatalogEntry(
-            id: "llama-3.2-1b-q8",
-            displayName: "Llama 3.2 1B",
-            modelDescription: "Meta's compact 1B model. Good balance of speed and quality for personalized outreach.",
-            repoID: "bartowski/Llama-3.2-1B-Instruct-GGUF",
-            filename: "Llama-3.2-1B-Instruct-Q8_0.gguf",
-            downloadURL: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf",
-            sizeBytes: 1_321_000_000,
-            parameterLabel: "1B",
-            quantLabel: "Q8_0"
-        ),
-        CatalogEntry(
-            id: "smollm2-1.7b-q4",
-            displayName: "SmolLM2 1.7B",
-            modelDescription: "HuggingFace's small but capable instruct model. Excellent for short, punchy DMs.",
-            repoID: "HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF",
-            filename: "smollm2-1.7b-instruct-q4_k_m.gguf",
-            downloadURL: "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/smollm2-1.7b-instruct-q4_k_m.gguf",
-            sizeBytes: 1_040_000_000,
-            parameterLabel: "1.7B",
-            quantLabel: "Q4_K_M"
-        ),
-        CatalogEntry(
-            id: "phi-3-mini-q4",
-            displayName: "Phi-3 Mini 3.8B",
-            modelDescription: "Microsoft's efficient 3.8B model. Noticeably better DM quality — worth the extra size.",
-            repoID: "microsoft/Phi-3-mini-4k-instruct-gguf",
-            filename: "Phi-3-mini-4k-instruct-q4.gguf",
-            downloadURL: "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-gguf/resolve/main/Phi-3-mini-4k-instruct-q4.gguf",
-            sizeBytes: 2_176_000_000,
-            parameterLabel: "3.8B",
             quantLabel: "Q4_K_M"
         ),
     ] }
