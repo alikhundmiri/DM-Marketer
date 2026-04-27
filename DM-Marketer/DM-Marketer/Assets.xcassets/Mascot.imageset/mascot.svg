@@ -1,0 +1,66 @@
+<svg width="200" height="260" viewBox="0 0 200 260" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bodyGrad" x1="100" y1="12" x2="100" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00CED1"/>
+      <stop offset="1" stop-color="#0891B2"/>
+    </linearGradient>
+    <linearGradient id="shimmer" x1="60" y1="30" x2="90" y2="130" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="shadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00CED1" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#00CED1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softBlur">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+
+  <!-- Ground shadow -->
+  <ellipse cx="100" cy="252" rx="52" ry="10" fill="url(#shadowGrad)" filter="url(#softBlur)"/>
+
+  <!-- Main droplet body -->
+  <path d="M100 12
+           C100 12, 168 92, 168 158
+           Q168 230 100 230
+           Q32 230 32 158
+           C32 92 100 12 100 12 Z"
+        fill="url(#bodyGrad)"/>
+
+  <!-- Shimmer highlight (upper-left) -->
+  <path d="M72 42 C62 62 52 92 50 118 C55 108 65 88 70 68 Z"
+        fill="url(#shimmer)"/>
+
+  <!-- Left eye white -->
+  <ellipse cx="76" cy="162" rx="17" ry="20" fill="white"/>
+  <!-- Right eye white -->
+  <ellipse cx="124" cy="162" rx="17" ry="20" fill="white"/>
+
+  <!-- Left pupil -->
+  <ellipse cx="79" cy="164" rx="9" ry="11" fill="#0891B2"/>
+  <!-- Right pupil -->
+  <ellipse cx="127" cy="164" rx="9" ry="11" fill="#0891B2"/>
+
+  <!-- Left pupil shine -->
+  <circle cx="75" cy="158" r="4" fill="white"/>
+  <!-- Right pupil shine -->
+  <circle cx="123" cy="158" r="4" fill="white"/>
+
+  <!-- Smile -->
+  <path d="M78 186 Q100 202 122 186"
+        stroke="white" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+
+  <!-- Left blush -->
+  <ellipse cx="54" cy="182" rx="14" ry="8" fill="white" opacity="0.28"/>
+  <!-- Right blush -->
+  <ellipse cx="146" cy="182" rx="14" ry="8" fill="white" opacity="0.28"/>
+
+  <!-- Tiny sparkle top-right of body -->
+  <g transform="translate(152, 52)">
+    <line x1="0" y1="-8" x2="0" y2="8" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="-8" y1="0" x2="8" y2="0" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="-5.5" y1="-5.5" x2="5.5" y2="5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <line x1="5.5" y1="-5.5" x2="-5.5" y2="5.5" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+  </g>
+</svg>

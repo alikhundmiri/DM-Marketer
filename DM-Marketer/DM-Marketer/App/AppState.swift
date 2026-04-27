@@ -12,15 +12,24 @@ struct PendingShare {
 @Observable
 final class AppState {
     /// Active LLM service. Uses LlamaCppService for real on-device inference.
-    /// Falls back to MockLLMService for SwiftUI previews.
     var llmService: any LLMService = LlamaCppService()
 
     /// Whether the active LLM service has a model loaded and ready.
     /// Kept here (not inside the service) so @Observable drives SwiftUI re-renders.
     var isModelLoaded: Bool = false
 
+    /// True while loadModel() is in progress (file being read into memory).
+    var isModelLoading: Bool = false
+
+    /// Name of the model currently being loaded (shown in the chat loading state).
+    var loadingModelName: String?
+
     /// Display name of the currently active model.
     var activeModelName: String?
+
+    /// Last successfully loaded model — kept after unload so we can reload on foreground.
+    private(set) var lastModelURL: URL?
+    private(set) var lastModelDisplayName: String?
 
     /// Pending deep-link chat ID written by the Share Extension.
     var pendingChatID: UUID?
@@ -36,21 +45,39 @@ final class AppState {
     /// Load a model file into the service. Updates both the service flag and the observable flag.
     @MainActor
     func loadModel(at url: URL, displayName: String) async {
+        guard !isModelLoading else { return }
+        lastModelURL = url
+        lastModelDisplayName = displayName
+        isModelLoading = true
+        loadingModelName = displayName
+        loadModelError = nil
+        let nCtx = LLMModel.contextWindow(forFilename: url.lastPathComponent)
         do {
-            try await llmService.loadModel(at: url)
+            try await llmService.loadModel(at: url, nCtx: nCtx)
             isModelLoaded = true
             activeModelName = displayName
-            loadModelError = nil
         } catch {
             isModelLoaded = false
             loadModelError = error.localizedDescription
         }
+        isModelLoading = false
+        loadingModelName = nil
+    }
+
+    /// Reload the last known model. Called when app returns to foreground after unloading.
+    @MainActor
+    func reloadLastModel() async {
+        guard let url = lastModelURL, let name = lastModelDisplayName else { return }
+        guard !isModelLoaded, !isModelLoading else { return }
+        await loadModel(at: url, displayName: name)
     }
 
     /// Unload the current model. Resets both flags.
     func unloadModel() {
         llmService.unloadModel()
         isModelLoaded = false
+        isModelLoading = false
         activeModelName = nil
+        loadingModelName = nil
     }
 }

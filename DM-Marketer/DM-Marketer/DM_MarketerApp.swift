@@ -43,14 +43,33 @@ struct DM_MarketerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                // @Observable uses .environment(), not .environmentObject()
                 .environment(appState)
                 .onOpenURL { url in
                     handleIncomingURL(url)
                 }
                 .task {
-                    // Reconnect to any background download tasks that survived a restart
                     ModelDownloadService.shared.reconnect()
+                }
+                // Fix 2: free GPU/RAM immediately when iOS signals memory pressure
+                .onReceive(NotificationCenter.default.publisher(
+                    for: UIApplication.didReceiveMemoryWarningNotification)
+                ) { _ in
+                    print("[Memory] Warning received — unloading model")
+                    appState.unloadModel()
+                }
+                // Fix 3: unload when backgrounded so the model doesn't sit in GPU memory
+                .onReceive(NotificationCenter.default.publisher(
+                    for: UIApplication.didEnterBackgroundNotification)
+                ) { _ in
+                    print("[Lifecycle] App backgrounded — unloading model")
+                    appState.unloadModel()
+                }
+                // Fix 3: reload when foregrounded so inference is ready again
+                .onReceive(NotificationCenter.default.publisher(
+                    for: UIApplication.willEnterForegroundNotification)
+                ) { _ in
+                    print("[Lifecycle] App foregrounded — reloading model")
+                    Task { await appState.reloadLastModel() }
                 }
         }
         .modelContainer(sharedModelContainer)

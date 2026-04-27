@@ -11,16 +11,22 @@ struct TopicsListView: View {
         NavigationStack {
             Group {
                 if topics.isEmpty {
-                    emptyState
+                    scrollableEmptyState
                 } else {
-                    list
+                    topicList
                 }
             }
-            .navigationTitle("Topics")
+            .navigationTitle("ColdFlow")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
-                    Button { showingNewTopic = true } label: {
-                        Image(systemName: "plus")
+                    Button {
+                        showingNewTopic = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(Color.cfCyan)
                     }
                 }
             }
@@ -30,26 +36,32 @@ struct TopicsListView: View {
         }
     }
 
-    private var list: some View {
+    // MARK: - Empty state
+
+    private var scrollableEmptyState: some View {
+        ScrollView {
+            MascotEmptyState(
+                headline: "Flow starts here",
+                subheadline: "Create a topic for each product or campaign. Your AI writes the DM, you send the flow.",
+                actionLabel: "Create your first topic",
+                action: { showingNewTopic = true }
+            )
+        }
+    }
+
+    // MARK: - List
+
+    private var topicList: some View {
         List {
             ForEach(topics) { topic in
                 NavigationLink(destination: TopicDetailView(topic: topic)) {
                     TopicRow(topic: topic)
                 }
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             }
             .onDelete(perform: deleteTopics)
         }
-    }
-
-    private var emptyState: some View {
-        ContentUnavailableView {
-            Label("No Topics", systemImage: "folder.badge.plus")
-        } description: {
-            Text("Create a topic for each product or campaign you want to promote.")
-        } actions: {
-            Button("Create Topic") { showingNewTopic = true }
-                .buttonStyle(.borderedProminent)
-        }
+        .listStyle(.insetGrouped)
     }
 
     private func deleteTopics(at offsets: IndexSet) {
@@ -57,21 +69,41 @@ struct TopicsListView: View {
     }
 }
 
+// MARK: - Topic row
+
 private struct TopicRow: View {
     let topic: Topic
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(topic.name)
-                .font(.headline)
-            Text(topic.promotionDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            Label("\(topic.chats.count) chats", systemImage: "bubble.left")
+        HStack(spacing: 12) {
+            // Flow accent bar
+            RoundedRectangle(cornerRadius: 3)
+                .fill(LinearGradient.cfPrimary)
+                .frame(width: 4)
+                .frame(maxHeight: .infinity)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(topic.name)
+                    .font(.headline)
+
+                Text(topic.promotionDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+
+                HStack(spacing: 12) {
+                    Label(
+                        "\(topic.chats.count) \(topic.chats.count == 1 ? "chat" : "chats")",
+                        systemImage: "bubble.left.and.bubble.right"
+                    )
+                    if !topic.link.isEmpty {
+                        Label("Link", systemImage: "link")
+                    }
+                }
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+            }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 6)
     }
 }

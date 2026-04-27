@@ -6,7 +6,9 @@ import Foundation
 /// Swap in LlamaCppService (or MLXService) once you add the Swift package.
 protocol LLMService: AnyObject {
     var isModelLoaded: Bool { get }
-    func loadModel(at url: URL) async throws
+    /// The n_ctx value that was passed to loadModel — used by ChatViewModel for history truncation.
+    var contextWindowSize: Int { get }
+    func loadModel(at url: URL, nCtx: Int) async throws
     func unloadModel()
     /// Returns an async stream of token strings. Accumulate them for the full response.
     func generate(systemPrompt: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
@@ -37,9 +39,11 @@ enum LLMError: LocalizedError {
 
 final class MockLLMService: LLMService {
     var isModelLoaded: Bool = false
+    var contextWindowSize: Int = 2048
 
-    func loadModel(at url: URL) async throws {
+    func loadModel(at url: URL, nCtx: Int) async throws {
         try await Task.sleep(for: .milliseconds(300))
+        contextWindowSize = nCtx
         isModelLoaded = true
     }
 
@@ -124,23 +128,53 @@ final class MockLLMService: LLMService {
 #if canImport(llama)
 import llama
 
+/// OpaquePointer is not Sendable, but llama model/context pointers are only ever accessed
+/// from within LlamaCppService (single-writer pattern). We wrap them here to silence the
+/// Swift 6 Sendable error on Task.detached captures and returns.
+private struct LlamaPointers: @unchecked Sendable {
+    let model:   OpaquePointer
+    let context: OpaquePointer
+}
+
 final class LlamaCppService: LLMService {
-    private var model:   OpaquePointer?
-    private var context: OpaquePointer?
-    var isModelLoaded: Bool = false
+    // Stored as LlamaPointers (Sendable) so raw OpaquePointers never need to cross
+    // actor boundaries — Swift 6 strict concurrency requires Sendable for that.
+    private var ptrs: LlamaPointers?
+    var isModelLoaded: Bool { ptrs != nil }
+    private(set) var contextWindowSize: Int = 2048
 
     // MARK: Load
 
-    func loadModel(at url: URL) async throws {
-        let result = try await Task.detached(priority: .userInitiated) { () throws -> (OpaquePointer, OpaquePointer) in
+    func loadModel(at url: URL, nCtx: Int) async throws {
+        let loadedPtrs = try await Task.detached(priority: .userInitiated) { () throws -> LlamaPointers in
             llama_backend_init()
             var mparams = llama_model_default_params()
-            mparams.n_gpu_layers = 99
-            guard let m = llama_model_load_from_file(url.path, mparams) else {
+            // Adaptive GPU offload: iPhone 13 (4 GB) → CPU only to avoid jetsam.
+            // 6 GB+ devices (iPhone 14 Pro and newer) can safely offload all layers.
+            let ramGB = ProcessInfo.processInfo.physicalMemory / 1_000_000_000
+            let gpuLayers: Int32 = ramGB >= 6 ? 99 : 0
+            print("[LLM] physicalMemory=\(ramGB) GB → n_gpu_layers=\(gpuLayers), n_ctx=\(nCtx)")
+            mparams.n_gpu_layers = gpuLayers
+            guard FileManager.default.fileExists(atPath: url.path) else {
                 throw LLMError.modelFileNotFound
             }
+            guard let m = llama_model_load_from_file(url.path, mparams) else {
+                // Give a specific message when the model file is large relative to available RAM.
+                let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+                let fileSizeGB = Double(fileSize) / 1_000_000_000
+                if fileSizeGB > Double(ramGB) * 0.55 {
+                    throw LLMError.generationFailed(
+                        "This model (\(String(format: "%.1f", fileSizeGB)) GB) is too large for your device's \(ramGB) GB RAM. " +
+                        "Try Qwen 2.5 0.5B or Gemma 3 1B instead."
+                    )
+                }
+                throw LLMError.generationFailed(
+                    "Failed to load model — not enough free memory. " +
+                    "Try force-quitting other apps, or use a smaller model."
+                )
+            }
             var cparams = llama_context_default_params()
-            cparams.n_ctx = 2048
+            cparams.n_ctx = UInt32(nCtx)
             cparams.n_batch = 512
             let threads = Int32(max(1, ProcessInfo.processInfo.processorCount - 1))
             cparams.n_threads = threads
@@ -149,36 +183,36 @@ final class LlamaCppService: LLMService {
                 llama_model_free(m)
                 throw LLMError.generationFailed("Failed to create inference context")
             }
-            return (m, c)
+            return LlamaPointers(model: m, context: c)
         }.value
-        model = result.0
-        context = result.1
-        isModelLoaded = true
+        ptrs = loadedPtrs
+        contextWindowSize = nCtx
     }
 
     // MARK: Unload
 
     func unloadModel() {
-        if let c = context { llama_free(c) }
-        if let m = model   { llama_model_free(m) }
+        if let p = ptrs {
+            llama_free(p.context)
+            llama_model_free(p.model)
+        }
         llama_backend_free()
-        context = nil
-        model = nil
-        isModelLoaded = false
+        ptrs = nil
     }
 
     // MARK: Generate
 
     func generate(systemPrompt: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
-        guard let model, let context else {
+        guard let ptrs else {
             return AsyncThrowingStream { $0.finish(throwing: LLMError.noModelLoaded) }
         }
         return AsyncThrowingStream { continuation in
-            Task {
+            // Detached so inference never competes with the main actor for cooperative threads.
+            // ptrs is @unchecked Sendable so it crosses the boundary safely.
+            Task.detached(priority: .userInitiated) {
                 do {
-                    try Self.runInference(
-                        model: model,
-                        context: context,
+                    try await Self.runInference(
+                        ptrs: ptrs,
                         systemPrompt: systemPrompt,
                         history: history,
                         continuation: continuation
@@ -193,12 +227,14 @@ final class LlamaCppService: LLMService {
     // MARK: Private – Inference
 
     private static func runInference(
-        model: OpaquePointer,
-        context: OpaquePointer,
+        ptrs: LlamaPointers,
         systemPrompt: String,
         history: [ChatMessage],
         continuation: AsyncThrowingStream<String, Error>.Continuation
-    ) throws {
+    ) async throws {
+        // Unpack inside the function — no actor boundary crossing needed here.
+        let model   = ptrs.model
+        let context = ptrs.context
         let vocab = llama_model_get_vocab(model)
         let prompt = try buildPrompt(model: model, systemPrompt: systemPrompt, history: history)
 
@@ -217,22 +253,28 @@ final class LlamaCppService: LLMService {
             throw LLMError.generationFailed("Tokenization produced no tokens")
         }
 
-        // Prefill pass — process the entire prompt at once
-        try {
-            var batch = llama_batch_init(Int32(nPrompt), 0, 1)
+        // Prefill pass — chunked to respect n_batch=512 limit
+        let nBatch = 512
+        var prefillStart = 0
+        while prefillStart < nPrompt {
+            if Task.isCancelled { continuation.finish(); return }
+            let chunkSize = min(nBatch, nPrompt - prefillStart)
+            var batch = llama_batch_init(Int32(chunkSize), 0, 1)
             defer { llama_batch_free(batch) }
-            for i in 0..<nPrompt {
-                batch.token![i]      = tokens[i]
-                batch.pos![i]        = Int32(i)
+            for i in 0..<chunkSize {
+                let gi = prefillStart + i
+                batch.token![i]      = tokens[gi]
+                batch.pos![i]        = Int32(gi)
                 batch.n_seq_id![i]   = 1
                 batch.seq_id![i]![0] = 0
-                batch.logits![i]     = i == nPrompt - 1 ? 1 : 0
+                batch.logits![i]     = gi == nPrompt - 1 ? 1 : 0
             }
-            batch.n_tokens = Int32(nPrompt)
+            batch.n_tokens = Int32(chunkSize)
             guard llama_decode(context, batch) == 0 else {
                 throw LLMError.generationFailed("Failed to process prompt")
             }
-        }()
+            prefillStart += chunkSize
+        }
 
         // Sampler chain
         let sparams = llama_sampler_chain_default_params()
@@ -252,6 +294,11 @@ final class LlamaCppService: LLMService {
         var pieceBuf = [CChar](repeating: 0, count: 256)
 
         for _ in 0..<512 {
+            if Task.isCancelled { break }
+            if nCur >= nCtx { break }
+
+            // Yield before the heavy C call so the system can process UI events.
+            await Task.yield()
             if Task.isCancelled { break }
 
             let token = llama_sampler_sample(sampler, context, -1)
@@ -295,7 +342,7 @@ final class LlamaCppService: LLMService {
             cContents.forEach { free($0) }
         }
 
-        var msgs = (0..<roles.count).map { i in
+        let msgs = (0..<roles.count).map { i in
             llama_chat_message(role: cRoles[i], content: cContents[i])
         }
 
@@ -318,8 +365,9 @@ final class LlamaCppService: LLMService {
 // To activate: General → Frameworks, Libraries, and Embedded Content → + → llama.xcframework → Embed & Sign
 final class LlamaCppService: LLMService {
     var isModelLoaded: Bool = false
+    var contextWindowSize: Int = 2048
 
-    func loadModel(at url: URL) async throws {
+    func loadModel(at url: URL, nCtx: Int) async throws {
         throw LLMError.generationFailed(
             "Add llama.xcframework to DM-Marketer target: " +
             "General → Frameworks, Libraries, and Embedded Content → + → llama.xcframework → Embed & Sign."

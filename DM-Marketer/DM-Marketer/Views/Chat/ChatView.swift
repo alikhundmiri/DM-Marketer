@@ -9,7 +9,7 @@ struct ChatView: View {
     let topic: Topic
 
     @State private var viewModel: ChatViewModel
-    @State private var hasInitialized = false   // prevents re-init on every onAppear
+    @State private var hasInitialized = false
 
     init(chat: Chat, topic: Topic) {
         self.chat = chat
@@ -17,28 +17,43 @@ struct ChatView: View {
         _viewModel = State(initialValue: ChatViewModel(llmService: MockLLMService()))
     }
 
+    private var canSend: Bool {
+        !viewModel.inputText.trimmingCharacters(in: .whitespaces).isEmpty && appState.isModelLoaded
+    }
+
     var body: some View {
         VStack(spacing: 0) {
+            // Context strip (platform + topic)
             if !chat.socialPostContent.isEmpty {
-                ContextBanner(chat: chat, topic: topic)
+                contextStrip
                 Divider()
             }
 
+            // Model status banner
+            modelStatusBanner
+
+            // Chat messages
             messagesScrollView
-            Divider()
-            if !topic.link.isEmpty {
-                LinkCopyBar(link: topic.link)
-                Divider()
-            }
-            quickActionsBar
-            inputBar
+
+            // Bottom input section
+            inputSection
         }
         .navigationTitle(chat.title)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            guard !hasInitialized else { return }
-            hasInitialized = true
-            viewModel = ChatViewModel(llmService: appState.llmService)
+            if !hasInitialized {
+                hasInitialized = true
+                viewModel = ChatViewModel(llmService: appState.llmService)
+            }
+            viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
+        }
+        .onChange(of: appState.isModelLoaded) { _, isLoaded in
+            guard isLoaded, chat.messages.isEmpty, !viewModel.isGenerating else { return }
+            viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
+        }
+        .onChange(of: appState.isModelLoading) { _, isLoading in
+            guard !isLoading, appState.isModelLoaded,
+                  chat.messages.isEmpty, !viewModel.isGenerating else { return }
             viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
         }
         .onDisappear {
@@ -46,36 +61,112 @@ struct ChatView: View {
         }
     }
 
+    // MARK: - Context strip
+
+    private var contextStrip: some View {
+        HStack(spacing: 6) {
+            Image(systemName: chat.sourcePlatform.systemImage)
+                .font(.caption.weight(.semibold))
+            Text(chat.sourcePlatform.rawValue)
+                .font(.caption.weight(.medium))
+            Text("·")
+                .font(.caption)
+                .foregroundStyle(Color(.tertiaryLabel))
+            Image(systemName: "megaphone.fill")
+                .font(.caption2)
+                .foregroundStyle(Color(.tertiaryLabel))
+            Text(topic.name)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(Color(.systemGray6))
+    }
+
+    // MARK: - Model status banner
+
+    @ViewBuilder
+    private var modelStatusBanner: some View {
+        if !chat.sortedMessages.isEmpty {
+            if appState.isModelLoading {
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small).tint(.secondary)
+                    Text("Loading \(appState.loadingModelName ?? "model")…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color(.systemGray6))
+                Divider()
+            } else if !appState.isModelLoaded {
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.subheadline)
+                    Text("Model not loaded")
+                        .font(.caption.weight(.medium))
+                    Spacer()
+                    Button("Reload") {
+                        Task { await appState.reloadLastModel() }
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        LinearGradient(colors: [.cfCyan, .cfBlue],
+                                       startPoint: .leading, endPoint: .trailing),
+                        in: Capsule()
+                    )
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Color.orange.opacity(0.07))
+                Divider()
+            }
+        }
+    }
+
     // MARK: - Empty state
 
-    private var noModelEmptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text("No model loaded")
-                .font(.headline)
-            if let err = appState.loadModelError {
-                Text(err)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-            } else {
-                Text("Go to the Models tab to download a local AI model. Once loaded, come back here and tap Generate.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+    @ViewBuilder
+    private var emptyStateView: some View {
+        if appState.isModelLoading {
+            VStack(spacing: 16) {
+                DropletMascot(size: 90)
+                Text("Loading \(appState.loadingModelName ?? "model")…")
+                    .font(.headline)
+                    .foregroundStyle(
+                        LinearGradient(colors: [.cfCyan, .cfBlue],
+                                       startPoint: .leading, endPoint: .trailing)
+                    )
+                ProgressView()
+                    .tint(.cfCyan)
             }
-            Button("Generate DM") {
-                viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!appState.isModelLoaded)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 48)
+        } else if appState.isModelLoaded {
+            MascotEmptyState(
+                headline: "Ready to flow",
+                subheadline: "Your smol AI is loaded and ready to write a cold DM.",
+                actionLabel: "Generate DM",
+                action: {
+                    viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
+                }
+            )
+        } else {
+            MascotEmptyState(
+                headline: "No model loaded",
+                subheadline: appState.loadModelError
+                    ?? "Go to the Models tab and download a model to get started."
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
     }
 
     // MARK: - Messages
@@ -84,25 +175,36 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    if chat.sortedMessages.isEmpty && !viewModel.isGenerating && !appState.isModelLoaded {
-                        noModelEmptyState
+                    // Social post shown as a received bubble at the top
+                    if !chat.socialPostContent.isEmpty {
+                        ContextPostBubble(platform: chat.sourcePlatform,
+                                          content: chat.socialPostContent)
+                            .id("context-post")
                     }
+
+                    if chat.sortedMessages.isEmpty && !viewModel.isGenerating {
+                        emptyStateView
+                    }
+
                     ForEach(chat.sortedMessages) { message in
                         MessageBubble(message: message, platform: chat.sourcePlatform)
                             .id(message.id)
                     }
+
+                    // Typing indicator while waiting for first token
                     if viewModel.isGenerating && viewModel.streamingBuffer.isEmpty {
                         HStack {
                             TypingIndicator()
                             Spacer()
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 14)
                         .id("typing")
                     }
-                    Color.clear.frame(height: 1).id("bottom")
+
+                    Color.clear.frame(height: 8).id("bottom")
                 }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 4)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
             }
             .onChange(of: chat.messages.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: viewModel.isGenerating)  { _, _ in scrollToBottom(proxy) }
@@ -115,73 +217,113 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - Quick-action chips
+    // MARK: - Bottom input section
+
+    private var inputSection: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            // Link copy bar
+            if !topic.link.isEmpty {
+                LinkCopyBar(link: topic.link)
+                Divider()
+            }
+
+            // Quick action chips
+            quickActionsBar
+
+            Divider()
+
+            // Error message
+            if let err = viewModel.errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.caption)
+                    Text(err)
+                        .font(.caption)
+                }
+                .foregroundStyle(.red)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
+                .padding(.bottom, 2)
+            }
+
+            // Text input + send button
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Adjust tone, try a variation…", text: $viewModel.inputText, axis: .vertical)
+                    .font(.subheadline)
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color(.systemGray6),
+                                in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
+                sendStopButton
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .padding(.bottom, 2)
+        }
+        .background(Color(.systemBackground))
+    }
+
+    // MARK: - Quick actions
 
     private var quickActionsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(QuickAction.allCases) { action in
-                    Button(action.label) {
-                        viewModel.send(
-                            userText: action.prompt,
-                            chat: chat,
-                            topic: topic,
-                            context: modelContext
-                        )
+                    Button {
+                        viewModel.send(userText: action.prompt,
+                                       chat: chat, topic: topic, context: modelContext)
+                    } label: {
+                        Label(action.label, systemImage: action.icon)
+                            .font(.caption.weight(.medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(action.tint.opacity(0.10),
+                                        in: Capsule())
+                            .foregroundStyle(action.tint)
+                            .overlay(Capsule().strokeBorder(action.tint.opacity(0.2), lineWidth: 1))
                     }
-                    .buttonStyle(.bordered)
-                    .tint(action.tint)
-                    .controlSize(.small)
-                    .disabled(viewModel.isGenerating)
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isGenerating || !appState.isModelLoaded)
+                    .opacity((viewModel.isGenerating || !appState.isModelLoaded) ? 0.4 : 1)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
         }
-        .background(Color(.systemBackground))
     }
 
-    // MARK: - Input bar
+    // MARK: - Send / Stop button
 
-    @ViewBuilder
-    private var inputBar: some View {
-        if let err = viewModel.errorMessage {
-            Text(err)
-                .font(.caption)
-                .foregroundStyle(.red)
-                .padding(.horizontal)
-                .padding(.top, 4)
-        }
-
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("Ask for a variation, adjust tone…", text: $viewModel.inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(.systemGray6))
-                .clipShape(Capsule())
-                .lineLimit(1...5)
-
-            Button {
-                if viewModel.isGenerating {
-                    viewModel.cancelGeneration()
-                } else {
-                    let text = viewModel.inputText
-                    viewModel.send(userText: text, chat: chat, topic: topic, context: modelContext)
-                }
-            } label: {
-                Image(systemName: viewModel.isGenerating ? "stop.circle.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 34))
-                    .foregroundStyle(
-                        viewModel.isGenerating
-                            ? .red
-                            : (viewModel.inputText.isEmpty ? .secondary : .blue)
-                    )
+    private var sendStopButton: some View {
+        Button {
+            if viewModel.isGenerating {
+                viewModel.cancelGeneration()
+            } else {
+                let text = viewModel.inputText
+                viewModel.send(userText: text, chat: chat, topic: topic, context: modelContext)
             }
-            .disabled(!viewModel.isGenerating && viewModel.inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+        } label: {
+            Image(systemName: viewModel.isGenerating ? "stop.fill" : "arrow.up")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background {
+                    if viewModel.isGenerating {
+                        Circle().fill(Color.red)
+                    } else if canSend {
+                        Circle().fill(LinearGradient.cfPrimary)
+                    } else {
+                        Circle().fill(Color(.systemGray4))
+                    }
+                }
+                .animation(.spring(duration: 0.2), value: viewModel.isGenerating)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .buttonStyle(.plain)
+        .disabled(!viewModel.isGenerating && !canSend)
     }
 }
 
@@ -200,13 +342,25 @@ private enum QuickAction: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .tryAgain:           return "↺ Try again"
-        case .shorter:            return "↓ Shorter"
-        case .moreCasual:         return "More casual"
-        case .moreProfessional:   return "More professional"
-        case .addQuestion:        return "Add a question"
+        case .tryAgain:           return "Try again"
+        case .shorter:            return "Shorter"
+        case .moreCasual:         return "Casual"
+        case .moreProfessional:   return "Professional"
+        case .addQuestion:        return "Add question"
         case .lessSalesy:         return "Less salesy"
-        case .moreEmpathetic:     return "More empathetic"
+        case .moreEmpathetic:     return "Empathetic"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .tryAgain:           return "arrow.counterclockwise"
+        case .shorter:            return "arrow.down.right.and.arrow.up.left"
+        case .moreCasual:         return "face.smiling"
+        case .moreProfessional:   return "building.2"
+        case .addQuestion:        return "questionmark.bubble"
+        case .lessSalesy:         return "tag.slash"
+        case .moreEmpathetic:     return "heart.fill"
         }
     }
 
@@ -242,42 +396,44 @@ private enum QuickAction: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Context Banner
+// MARK: - Context Post Bubble
 
-private struct ContextBanner: View {
-    let chat: Chat
-    let topic: Topic
+private struct ContextPostBubble: View {
+    let platform: SourcePlatform
+    let content: String
 
-    @State private var expanded = false
+    @State private var appeared = false
 
     var body: some View {
-        DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 10) {
-                Label(chat.sourcePlatform.rawValue, systemImage: chat.sourcePlatform.systemImage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .bottom, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Image(systemName: platform.systemImage)
+                        .font(.caption2.weight(.semibold))
+                    Text("Their \(platform.rawValue) post")
+                        .font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(.secondary)
 
-                Text(chat.socialPostContent)
-                    .font(.caption)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                Divider()
-
-                Label("Promoting: \(topic.promotionDescription)", systemImage: "megaphone")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(content)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.top, 4)
-        } label: {
-            Label("Chat Context", systemImage: "info.circle")
-                .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(Color(.systemGray5))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            Spacer(minLength: 60)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .background(Color(.systemGray6))
+        .padding(.horizontal, 10)
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 8)
+        .onAppear {
+            withAnimation(.spring(duration: 0.35, bounce: 0.15).delay(0.05)) {
+                appeared = true
+            }
+        }
     }
 }
 
@@ -290,7 +446,7 @@ private struct LinkCopyBar: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "link")
-                .font(.caption)
+                .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
 
             Text(link)
@@ -302,20 +458,20 @@ private struct LinkCopyBar: View {
 
             Button {
                 UIPasteboard.general.string = link
-                copied = true
+                withAnimation(.easeInOut(duration: 0.2)) { copied = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    copied = false
+                    withAnimation(.easeInOut(duration: 0.2)) { copied = false }
                 }
             } label: {
-                Text(copied ? "Copied!" : "Copy")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(copied ? .green : .blue)
+                Text(copied ? "Copied!" : "Copy link")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(copied ? .green : .accentColor)
             }
             .buttonStyle(.plain)
             .animation(.easeInOut(duration: 0.2), value: copied)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.vertical, 8)
         .background(Color(.systemGray6))
     }
 }
@@ -323,27 +479,29 @@ private struct LinkCopyBar: View {
 // MARK: - Typing Indicator
 
 struct TypingIndicator: View {
-    @State private var phase = false
+    @State private var animating = false
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(Color.secondary)
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(phase ? 1.0 : 0.5)
+                    .fill(Color(white: 0.52))
+                    .frame(width: 9, height: 9)
+                    .offset(y: animating ? -5 : 0)
                     .animation(
-                        .easeInOut(duration: 0.5)
+                        .easeInOut(duration: 0.42)
                             .repeatForever(autoreverses: true)
-                            .delay(Double(i) * 0.15),
-                        value: phase
+                            .delay(Double(i) * 0.14),
+                        value: animating
                     )
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
         .background(Color(.systemGray5))
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .onAppear { phase = true }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { animating = true }
+        }
     }
 }

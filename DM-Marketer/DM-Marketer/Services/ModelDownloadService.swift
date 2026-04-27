@@ -138,6 +138,26 @@ extension ModelDownloadService: URLSessionDownloadDelegate {
 
         switch moveResult {
         case .success:
+            // Validate GGUF magic bytes ("GGUF" = 0x47 0x47 0x55 0x46).
+            // A bad download (HTML error page, redirect body, etc.) will have wrong bytes.
+            if let fh = try? FileHandle(forReadingFrom: dest) {
+                let magic = fh.readData(ofLength: 4)
+                try? fh.close()
+                let ggufMagic = Data([0x47, 0x47, 0x55, 0x46])
+                if magic != ggufMagic {
+                    try? FileManager.default.removeItem(at: dest)
+                    let err = NSError(
+                        domain: "ModelDownload",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey:
+                            "Download failed — file is not a valid GGUF model. " +
+                            "The server may have returned an error page. Try again."]
+                    )
+                    continuation?.yield(.failed(err))
+                    continuation?.finish()
+                    return
+                }
+            }
             continuation?.yield(.completed)
             continuation?.finish()
             // If the app was relaunched from background there's no live continuation.

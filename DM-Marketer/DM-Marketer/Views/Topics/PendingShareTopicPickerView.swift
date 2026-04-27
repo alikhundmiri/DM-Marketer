@@ -91,8 +91,8 @@ struct PendingShareTopicPickerView: View {
         topic.chats.append(chat)
         modelContext.insert(chat)
 
-        // Clear the pending share before navigating so the sheet doesn't re-appear
-        appState.pendingShare = nil
+        // Navigate within this sheet's NavigationStack first.
+        // pendingShare is cleared by ContentView's binding setter when the sheet is dismissed.
         createdChat = chat
     }
 

@@ -83,9 +83,7 @@ struct TopicDetailView: View {
         .sheet(isPresented: $showingNewChat) {
             NewChatView(topic: topic) { createdChat in
                 showingNewChat = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    navigateToChat = createdChat
-                }
+                navigateToChat = createdChat
             }
         }
         .sheet(isPresented: $showingEditTopic) {

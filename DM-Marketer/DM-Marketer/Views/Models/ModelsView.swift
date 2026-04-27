@@ -8,20 +8,37 @@ struct ModelsView: View {
 
     private let downloader = ModelDownloadService.shared
 
-    // Download state (ephemeral, not persisted)
     @State private var downloadProgress: [String: Double] = [:]
     @State private var downloadingIDs: Set<String> = []
     @State private var downloadErrors: [String: String] = [:]
+    @State private var entryPendingDelete: LLMModel.CatalogEntry?
+
+    private var deviceRAMGB: Int {
+        // Round to nearest GB — physicalMemory on iPhone 13 is ~3.74 GB, which rounds to 4.
+        Int((ProcessInfo.processInfo.physicalMemory + 500_000_000) / 1_000_000_000)
+    }
+
+    private var compatibleModels: [LLMModel.CatalogEntry] {
+        LLMModel.catalog.filter { $0.minimumRAMGB <= deviceRAMGB }
+    }
+
+    private var incompatibleModels: [LLMModel.CatalogEntry] {
+        LLMModel.catalog.filter { $0.minimumRAMGB > deviceRAMGB }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                activeModelSection
-                slowModelWarningSection
-                catalogSection
+                deviceSection
+                modelSection(title: "Works on your iPhone", entries: compatibleModels)
+                if !incompatibleModels.isEmpty {
+                    modelSection(title: "Requires more RAM", entries: incompatibleModels)
+                }
                 footerSection
             }
+            .listSectionSpacing(8)
             .navigationTitle("Models")
+            .navigationBarTitleDisplayMode(.large)
             .task { reconcileDownloads() }
             .confirmationDialog(
                 "Delete model?",
@@ -32,77 +49,59 @@ struct ModelsView: View {
                 titleVisibility: .visible
             ) {
                 if let entry = entryPendingDelete {
-                    Button("Delete \(entry.displayName) (\(formatSize(entry.sizeBytes)))", role: .destructive) {
+                    Button("Delete \(entry.displayName) (\(formatBytes(entry.sizeBytes)))", role: .destructive) {
                         confirmDelete(entry)
                     }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This model file will be removed from your device. You can re-download it later.")
+                Text("This model will be removed from your device. You can re-download it later.")
             }
         }
-    }
-
-    private func formatSize(_ bytes: Int64) -> String {
-        let gb = Double(bytes) / 1_000_000_000
-        if gb >= 1 { return String(format: "%.1f GB", gb) }
-        return String(format: "%.0f MB", Double(bytes) / 1_000_000)
     }
 
     // MARK: - Sections
 
-    @ViewBuilder
-    private var activeModelSection: some View {
-        if let activeModel = savedModels.first(where: { $0.isDefault && $0.isDownloaded }) {
-            Section("Active Model") {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(activeModel.displayName)
-                            .font(.headline)
-                        Text("\(activeModel.parameterLabel) · \(activeModel.quantLabel) · \(activeModel.formattedSize)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                }
-            }
-        }
-    }
+    private var deviceSection: some View {
+        Section {
+            HStack(spacing: 14) {
+                Image(systemName: "memorychip.fill")
+                    .font(.title3)
+                    .foregroundStyle(.blue)
+                    .frame(width: 32)
 
-    /// Shows a warning + delete prompt when the active model is ≥ 1B params and is slow on older iPhones.
-    @ViewBuilder
-    private var slowModelWarningSection: some View {
-        if let active = savedModels.first(where: { $0.isDefault && $0.isDownloaded }),
-           active.sizeBytes >= 700_000_000 {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("This model is slow on iPhone 13 and older", systemImage: "exclamationmark.triangle.fill")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your iPhone")
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.orange)
-
-                    Text("Delete it and download SmolLM2 360M or Qwen 2.5 0.5B — both generate DMs in 2–4 seconds instead of 30+.")
+                    Text("\(deviceRAMGB) GB RAM")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    Button(role: .destructive) {
-                        if let entry = LLMModel.catalog.first(where: { $0.id == active.id }) {
-                            entryPendingDelete = entry
-                        }
-                    } label: {
-                        Label("Delete \(active.displayName)", systemImage: "trash")
-                            .font(.subheadline.weight(.medium))
-                    }
                 }
-                .padding(.vertical, 4)
+
+                Spacer()
+
+                if let active = savedModels.first(where: { $0.isDefault && $0.isDownloaded }) {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Active model")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(active.displayName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.green)
+                    }
+                } else {
+                    Text("No model active")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .padding(.vertical, 6)
         }
     }
 
-    private var catalogSection: some View {
-        Section("Available Models") {
-            ForEach(LLMModel.catalog, id: \.id) { entry in
+    private func modelSection(title: String, entries: [LLMModel.CatalogEntry]) -> some View {
+        Section(title) {
+            ForEach(entries, id: \.id) { entry in
                 let saved = savedModels.first { $0.id == entry.id }
                 ModelRow(
                     entry: entry,
@@ -112,7 +111,7 @@ struct ModelsView: View {
                     error: downloadErrors[entry.id],
                     onDownload:   { startDownload(entry) },
                     onSetDefault: { setDefault(entry.id) },
-                    onDelete:     { deleteModel(entry) }
+                    onDelete:     { entryPendingDelete = entry }
                 )
             }
         }
@@ -120,17 +119,38 @@ struct ModelsView: View {
 
     private var footerSection: some View {
         Section {
-            Text("Models are stored locally — all inference runs 100% on-device. No data leaves your phone.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                Image(systemName: "lock.shield.fill")
+                    .foregroundStyle(.secondary)
+                Text("All inference runs 100% on-device. No data ever leaves your phone.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
         }
     }
 
     // MARK: - Actions
 
-    /// Scan the Models directory and mark any files that exist as downloaded.
-    /// Handles the case where a background download completed while the app was suspended/killed.
     private func reconcileDownloads() {
+        let validFilenames = Set(LLMModel.catalog.map { $0.filename })
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: ModelDownloadService.modelsDirectory.path) {
+            for file in files where file.hasSuffix(".gguf") && !validFilenames.contains(file) {
+                try? FileManager.default.removeItem(at: ModelDownloadService.modelsDirectory.appendingPathComponent(file))
+            }
+        }
+
+        for saved in savedModels where saved.isDownloaded {
+            if let entry = LLMModel.catalog.first(where: { $0.id == saved.id }) {
+                let fileURL = ModelDownloadService.modelsDirectory.appendingPathComponent(entry.filename)
+                if !FileManager.default.fileExists(atPath: fileURL.path) {
+                    saved.isDownloaded = false
+                    saved.downloadedAt = nil
+                    if saved.isDefault { saved.isDefault = false }
+                }
+            }
+        }
+
         for entry in LLMModel.catalog {
             let fileURL = ModelDownloadService.modelsDirectory.appendingPathComponent(entry.filename)
             guard FileManager.default.fileExists(atPath: fileURL.path) else { continue }
@@ -142,14 +162,10 @@ struct ModelsView: View {
                 }
             } else {
                 let new = LLMModel(
-                    id: entry.id,
-                    displayName: entry.displayName,
-                    modelDescription: entry.modelDescription,
-                    repoID: entry.repoID,
-                    filename: entry.filename,
-                    downloadURL: entry.downloadURL,
-                    sizeBytes: entry.sizeBytes,
-                    parameterLabel: entry.parameterLabel,
+                    id: entry.id, displayName: entry.displayName,
+                    modelDescription: entry.modelDescription, repoID: entry.repoID,
+                    filename: entry.filename, downloadURL: entry.downloadURL,
+                    sizeBytes: entry.sizeBytes, parameterLabel: entry.parameterLabel,
                     quantLabel: entry.quantLabel
                 )
                 new.isDownloaded = true
@@ -157,7 +173,6 @@ struct ModelsView: View {
                 modelContext.insert(new)
             }
         }
-        // Auto-set first downloaded model as default if nothing is default yet
         if savedModels.filter({ $0.isDefault }).isEmpty,
            let first = savedModels.first(where: { $0.isDownloaded }) {
             first.isDefault = true
@@ -173,16 +188,11 @@ struct ModelsView: View {
         downloadErrors[entry.id] = nil
 
         Task {
-            let stream = downloader.download(
-                modelID: entry.id,
-                from: entry.downloadURL,
-                filename: entry.filename
-            )
+            let stream = downloader.download(modelID: entry.id, from: entry.downloadURL, filename: entry.filename)
             for await event in stream {
                 switch event {
                 case .progress(let p):
                     downloadProgress[entry.id] = p
-
                 case .completed:
                     downloadingIDs.remove(entry.id)
                     let record: LLMModel
@@ -192,14 +202,10 @@ struct ModelsView: View {
                         record = existing
                     } else {
                         let new = LLMModel(
-                            id: entry.id,
-                            displayName: entry.displayName,
-                            modelDescription: entry.modelDescription,
-                            repoID: entry.repoID,
-                            filename: entry.filename,
-                            downloadURL: entry.downloadURL,
-                            sizeBytes: entry.sizeBytes,
-                            parameterLabel: entry.parameterLabel,
+                            id: entry.id, displayName: entry.displayName,
+                            modelDescription: entry.modelDescription, repoID: entry.repoID,
+                            filename: entry.filename, downloadURL: entry.downloadURL,
+                            sizeBytes: entry.sizeBytes, parameterLabel: entry.parameterLabel,
                             quantLabel: entry.quantLabel
                         )
                         new.isDownloaded = true
@@ -207,14 +213,12 @@ struct ModelsView: View {
                         modelContext.insert(new)
                         record = new
                     }
-                    // Auto-set as default and load if none is set yet
                     if savedModels.filter({ $0.isDefault }).isEmpty {
                         record.isDefault = true
                         if let url = record.localURL {
                             await appState.loadModel(at: url, displayName: record.displayName)
                         }
                     }
-
                 case .failed(let error):
                     downloadingIDs.remove(entry.id)
                     downloadErrors[entry.id] = error.localizedDescription
@@ -225,19 +229,10 @@ struct ModelsView: View {
 
     private func setDefault(_ id: String) {
         savedModels.forEach { $0.isDefault = false }
-        if let model = savedModels.first(where: { $0.id == id }),
-           let url = model.localURL {
+        if let model = savedModels.first(where: { $0.id == id }), let url = model.localURL {
             model.isDefault = true
-            Task {
-                await appState.loadModel(at: url, displayName: model.displayName)
-            }
+            Task { await appState.loadModel(at: url, displayName: model.displayName) }
         }
-    }
-
-    @State private var entryPendingDelete: LLMModel.CatalogEntry?
-
-    private func deleteModel(_ entry: LLMModel.CatalogEntry) {
-        entryPendingDelete = entry
     }
 
     private func confirmDelete(_ entry: LLMModel.CatalogEntry) {
@@ -246,9 +241,13 @@ struct ModelsView: View {
         if let saved = savedModels.first(where: { $0.id == entry.id }) {
             modelContext.delete(saved)
         }
-        if wasDefault {
-            appState.unloadModel()
-        }
+        if wasDefault { appState.unloadModel() }
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let gb = Double(bytes) / 1_000_000_000
+        if gb >= 1 { return String(format: "%.1f GB", gb) }
+        return String(format: "%.0f MB", Double(bytes) / 1_000_000)
     }
 }
 
@@ -265,41 +264,68 @@ private struct ModelRow: View {
     let onDelete: () -> Void
 
     private var isDownloaded: Bool { saved?.isDownloaded == true }
-    private var isDefault:    Bool { saved?.isDefault == true }
+    private var isDefault: Bool { saved?.isDefault == true }
+    private var isCompatible: Bool { entry.isCompatibleWithDevice }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack(alignment: .top, spacing: 12) {
+                OrgBadge(organization: entry.organization)
+                    .opacity(isCompatible ? 1 : 0.5)
+
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(entry.displayName)
                             .font(.headline)
+                            .foregroundStyle(isCompatible ? .primary : .secondary)
                         if isDefault {
-                            Text("DEFAULT")
+                            Text("ACTIVE")
                                 .font(.caption2.weight(.bold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
                                 .background(Color.green.opacity(0.15))
                                 .foregroundStyle(.green)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                     }
-                    Text("\(entry.parameterLabel) · \(entry.quantLabel) · \(formatSize(entry.sizeBytes))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    // Stats row
+                    HStack(spacing: 5) {
+                        Text(entry.parameterLabel)
+                        Text("·")
+                        Text(entry.quantLabel)
+                        Text("·")
+                        Text(formatBytes(entry.sizeBytes))
+                    }
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+
+                    Text("by \(entry.organization)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
+
                 Spacer()
                 actionButton
             }
 
+            // Description
             Text(entry.modelDescription)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isCompatible ? .secondary : Color(.tertiaryLabel))
+                .fixedSize(horizontal: false, vertical: true)
 
+            // Tags
+            HStack(spacing: 6) {
+                compatibilityTag
+                if isCompatible { speedTag }
+            }
+
+            // Download progress
             if isDownloading {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     ProgressView(value: progress)
-                    Text(String(format: "%.0f%%", progress * 100))
+                        .tint(Color.cfCyan)
+                    Text(String(format: "%.0f%%  of  %@", progress * 100, formatBytes(entry.sizeBytes)))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -312,19 +338,28 @@ private struct ModelRow: View {
             }
 
             if isDownloaded && !isDefault {
-                Button("Set as Default", action: onSetDefault)
+                Button("Set as Active Model", action: onSetDefault)
                     .font(.caption.weight(.medium))
                     .buttonStyle(.bordered)
-                    .tint(.blue)
+                    .tint(Color.cfCyan)
                     .controlSize(.small)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     @ViewBuilder
     private var actionButton: some View {
-        if isDownloading {
+        if !isCompatible {
+            VStack(alignment: .center, spacing: 3) {
+                Image(systemName: "lock.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(.tertiaryLabel))
+                Text("Needs \(entry.minimumRAMGB) GB")
+                    .font(.caption2)
+                    .foregroundStyle(Color(.tertiaryLabel))
+            }
+        } else if isDownloading {
             ProgressView().controlSize(.small)
         } else if isDownloaded {
             Button(role: .destructive, action: onDelete) {
@@ -334,17 +369,89 @@ private struct ModelRow: View {
             .foregroundStyle(.red)
         } else {
             Button(action: onDownload) {
-                Image(systemName: "arrow.down.circle")
+                Image(systemName: "arrow.down.circle.fill")
                     .font(.title2)
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.cfCyan, .cfBlue],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.blue)
         }
     }
 
-    private func formatSize(_ bytes: Int64) -> String {
+    @ViewBuilder
+    private var compatibilityTag: some View {
+        if isCompatible {
+            Label("Works on your iPhone", systemImage: "checkmark.circle.fill")
+                .font(.caption2.weight(.medium))
+                .padding(.horizontal, 9).padding(.vertical, 4)
+                .background(Color.cfCyan.opacity(0.1))
+                .foregroundStyle(Color.cfCyan)
+                .clipShape(Capsule())
+        } else {
+            Label("Requires \(entry.minimumRAMGB) GB RAM", systemImage: "memorychip")
+                .font(.caption2.weight(.medium))
+                .padding(.horizontal, 9).padding(.vertical, 4)
+                .background(Color.orange.opacity(0.1))
+                .foregroundStyle(.orange)
+                .clipShape(Capsule())
+        }
+    }
+
+    @ViewBuilder
+    private var speedTag: some View {
+        let (label, icon, color) = speedInfo
+        Label(label, systemImage: icon)
+            .font(.caption2.weight(.medium))
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(color.opacity(0.1))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
+    }
+
+    private var speedInfo: (String, String, Color) {
+        let deviceGB = (ProcessInfo.processInfo.physicalMemory + 500_000_000) / 1_000_000_000
+
+        if entry.sizeBytes < 500_000_000 {
+            return ("Fast on your iPhone", "bolt.fill", .cfCyan)
+        }
+        if deviceGB >= 6 {
+            return ("Fast on your iPhone", "bolt.fill", .cfCyan)
+        } else {
+            return ("May be slow on your iPhone", "tortoise.fill", .orange)
+        }
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
         let gb = Double(bytes) / 1_000_000_000
         if gb >= 1 { return String(format: "%.1f GB", gb) }
         return String(format: "%.0f MB", Double(bytes) / 1_000_000)
+    }
+}
+
+// MARK: - Org Badge
+
+private struct OrgBadge: View {
+    let organization: String
+
+    var body: some View {
+        Text(String(organization.prefix(1)))
+            .font(.headline.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 40, height: 40)
+            .background(badgeColor)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var badgeColor: Color {
+        switch organization {
+        case "Alibaba":  return Color(red: 1.0, green: 0.42, blue: 0.0)
+        case "Google":   return Color(red: 0.26, green: 0.52, blue: 0.96)
+        case "DeepSeek": return Color(red: 0.13, green: 0.7, blue: 0.67)
+        default:         return .gray
+        }
     }
 }

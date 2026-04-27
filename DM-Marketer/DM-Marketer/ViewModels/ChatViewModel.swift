@@ -57,6 +57,27 @@ final class ChatViewModel {
 
     // MARK: - Private
 
+    // Drops the oldest message pairs to keep the prompt within n_ctx - 512 tokens.
+    // Estimates 1 token per 4 characters — conservative enough to avoid hard failures.
+    private func truncatedHistory(_ history: [ChatMessage], systemPrompt: String) -> [ChatMessage] {
+        let nCtx = llmService.contextWindowSize
+        let reserved = 512
+        let maxInputTokens = nCtx - reserved
+
+        func estimate(_ text: String) -> Int { max(1, text.count / 4) }
+
+        let systemTokens = estimate(systemPrompt)
+        var budget = maxInputTokens - systemTokens
+        var kept: [ChatMessage] = []
+        for msg in history.reversed() {
+            let cost = estimate(msg.content)
+            guard budget - cost >= 0 else { break }
+            kept.append(msg)
+            budget -= cost
+        }
+        return kept.reversed()
+    }
+
     private func startGeneration(
         systemPrompt: String,
         history: [ChatMessage],
@@ -73,14 +94,21 @@ final class ChatViewModel {
         chat.messages.append(assistantMsg)
         context.insert(assistantMsg)
 
+        let trimmedHistory = truncatedHistory(history, systemPrompt: systemPrompt)
+
         streamTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            var tokenCount = 0
             do {
-                let stream = self.llmService.generate(systemPrompt: systemPrompt, history: history)
+                let stream = self.llmService.generate(systemPrompt: systemPrompt, history: trimmedHistory)
                 for try await token in stream {
                     guard !Task.isCancelled else { break }
                     self.streamingBuffer += token
-                    assistantMsg.content = self.streamingBuffer
+                    tokenCount += 1
+                    // Write to SwiftData every 5 tokens — reduces re-render pressure on main thread.
+                    if tokenCount % 5 == 0 {
+                        assistantMsg.content = self.streamingBuffer
+                    }
                 }
             } catch {
                 if !Task.isCancelled {
@@ -90,8 +118,8 @@ final class ChatViewModel {
                     }
                 }
             }
-            // Only update final state if this task wasn't superseded by cancelGeneration()
             if self.streamTask != nil {
+                assistantMsg.content = self.streamingBuffer   // final flush
                 assistantMsg.isStreaming = false
                 self.streamingBuffer = ""
                 self.isGenerating = false
