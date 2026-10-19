@@ -1,7 +1,9 @@
 import Foundation
 
 /// Data received from the Share Extension via the dmmarketer://share URL scheme.
-struct PendingShare {
+struct PendingShare: Identifiable {
+    /// Stable identity so the picker sheet isn't re-presented on every redraw.
+    let id = UUID()
     var text: String
     var url: String
     var platform: String

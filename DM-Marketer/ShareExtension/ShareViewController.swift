@@ -211,6 +211,11 @@ final class ShareModel {
             try? await center.add(request)
         }
         phase = .handedOff
+        if notificationsAllowed {
+            // The banner carries the next step; get out of the way so it's tappable over X.
+            try? await Task.sleep(for: .milliseconds(1500))
+            close()
+        }
     }
 
     func close() {

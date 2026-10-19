@@ -57,14 +57,10 @@ struct DM_MarketerApp: App {
                     print("[Memory] Warning received — unloading model")
                     appState.unloadModel()
                 }
-                // Fix 3: unload when backgrounded so the model doesn't sit in GPU memory
-                .onReceive(NotificationCenter.default.publisher(
-                    for: UIApplication.didEnterBackgroundNotification)
-                ) { _ in
-                    print("[Lifecycle] App backgrounded — unloading model")
-                    appState.unloadModel()
-                }
-                // Fix 3: reload when foregrounded so inference is ready again
+                // No unload on background: the share flow switches to X and back constantly,
+                // and freeing the context under a running decode crashes. The memory-warning
+                // handler above still frees it when iOS actually needs the RAM.
+                // Reload on foreground in case a memory warning unloaded it.
                 .onReceive(NotificationCenter.default.publisher(
                     for: UIApplication.willEnterForegroundNotification)
                 ) { _ in

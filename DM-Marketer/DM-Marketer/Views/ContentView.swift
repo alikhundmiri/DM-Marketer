@@ -32,7 +32,7 @@ struct ContentView: View {
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .sheet(item: pendingShareBinding) { share in
-            PendingShareTopicPickerView(share: share.share)
+            PendingShareTopicPickerView(share: share)
         }
         // The Share Extension can't open the app, so it leaves the post in the App Group
         // and posts a notification. Whenever we become active, pick it up.
@@ -51,10 +51,10 @@ struct ContentView: View {
         }
     }
 
-    private var pendingShareBinding: Binding<IdentifiablePendingShare?> {
+    private var pendingShareBinding: Binding<PendingShare?> {
         Binding(
-            get: { appState.pendingShare.map { IdentifiablePendingShare(share: $0) } },
-            set: { appState.pendingShare = $0?.share }
+            get: { appState.pendingShare },
+            set: { appState.pendingShare = $0 }
         )
     }
 }
@@ -119,11 +119,4 @@ private struct FlowTab: View {
         }
         .buttonStyle(.plain)
     }
-}
-
-// MARK: - Identifiable wrapper for PendingShare sheet
-
-struct IdentifiablePendingShare: Identifiable {
-    let id = UUID()
-    var share: PendingShare
 }
