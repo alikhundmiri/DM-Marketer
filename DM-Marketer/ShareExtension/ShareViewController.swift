@@ -1,32 +1,32 @@
 import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
+import UserNotifications
 import FoundationModels
 import os
 
-// SPIKE (branch spike/share-sheet) — diagnostic share sheet, not product UI.
-// Answers three questions on a real device:
-//   1. Can Apple's on-device model run inside a share extension, and how much memory is left?
-//   2. What does X (and Mail) actually hand to the share sheet?
-//   3. Can an extension open an X intent URL? (Apple says no — we log the real result.)
-// Tap "Copy report" and paste the result back into Claude Code.
+// Share sheet entry point. Two paths:
+//   • Apple Intelligence available → read the post, write the draft right here, Copy & close.
+//   • Otherwise → read the post, hand it to the app (App Group + notification), since the
+//     downloaded models are far bigger than an extension's ~100 MB memory limit.
+// A Diagnostics section keeps the spike's log for on-device testing.
 
 class ShareViewController: UIViewController {
 
-    private let spike = SpikeModel()
+    private let share = ShareModel()
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        spike.extensionContext = extensionContext
+        share.extensionContext = extensionContext
 
-        let host = UIHostingController(rootView: SpikeView(spike: spike))
+        let host = UIHostingController(rootView: ShareSheetView(share: share))
         addChild(host)
         host.view.frame = view.bounds
         host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(host.view)
         host.didMove(toParent: self)
 
-        spike.start(items: extensionContext?.inputItems as? [NSExtensionItem] ?? [])
+        share.start(items: extensionContext?.inputItems as? [NSExtensionItem] ?? [])
     }
 }
 
@@ -41,8 +41,16 @@ enum DraftKind: String, CaseIterable, Identifiable {
 
 @MainActor
 @Observable
-final class SpikeModel {
-    // Hard-coded for the spike — the extension can't read SwiftData Topics yet.
+final class ShareModel {
+    enum Phase: Equatable {
+        case reading
+        case writing          // Apple model generating in the sheet
+        case drafted          // draft ready to copy
+        case handedOff        // saved for the app; notification posted
+        case failed(String)
+    }
+
+    // Hard-coded until the app writes the active topic into the App Group.
     static let product = """
     ColdFlow: an iPhone app that drafts a personalised cold DM or reply from a post you share, \
     using AI that runs on your phone. One-time purchase, no subscription.
@@ -50,212 +58,159 @@ final class SpikeModel {
 
     weak var extensionContext: NSExtensionContext?
 
-    var log: [String] = []
-    var postText = ""
-    var postAuthor = ""
-    var sharedURL: URL?
+    var phase: Phase = .reading
+    var context: PostContext?
     var kind: DraftKind = .reply
     var draft = ""
-    var isGenerating = false
+    var notificationsAllowed = true
+    var copied = false
+    var log: [String] = []
 
     private let started = Date()
     private var session: LanguageModelSession?
-
-    // MARK: Logging
-
-    func note(_ line: String) {
-        let ms = Int(Date().timeIntervalSince(started) * 1000)
-        log.append("[\(ms)ms] \(line)")
-    }
-
-    func noteMemory(_ label: String) {
-        let availMB = os_proc_available_memory() / 1_048_576
-        note("MEM \(label): available=\(availMB) MB, footprint=\(Self.footprintMB()) MB")
-    }
-
-    private static func footprintMB() -> Int {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
-        let kr = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
-            }
-        }
-        return kr == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
-    }
-
-    var report: String {
-        let device = UIDevice.current
-        let header = "ColdFlow spike — \(device.model) iOS \(device.systemVersion), RAM \(ProcessInfo.processInfo.physicalMemory / 1_073_741_824) GB"
-        return ([header] + log + ["", "DRAFT (\(kind.rawValue)):", draft]).joined(separator: "\n")
-    }
+    private var appleModelReady: Bool { session != nil }
 
     // MARK: Flow
 
     func start(items: [NSExtensionItem]) {
         noteMemory("launch")
-        checkModel()   // prewarm in parallel with input extraction
+        prepareAppleModel()   // prewarm while we fetch the post
         Task {
-            await dumpInputs(items)
-            await fetchTweetTextIfNeeded()
-            if postText.isEmpty {
-                note("No post text found — nothing to personalise from.")
-            } else {
+            let (url, text) = await extractInputs(items)
+            do {
+                context = try await buildContext(url: url, text: text)
+                note("context: \(context!.summary)")
+            } catch {
+                note("context failed: \(error.localizedDescription)")
+                phase = .failed("Couldn't read this post. Check your connection and try again.")
+                return
+            }
+            if appleModelReady {
                 await generate()
+            } else {
+                await handOffToApp()
             }
         }
     }
 
-    private func checkModel() {
-        let model = SystemLanguageModel.default
-        switch model.availability {
+    private func prepareAppleModel() {
+        switch SystemLanguageModel.default.availability {
         case .available:
-            note("Apple model: AVAILABLE")
+            note("Apple model: available")
             let session = LanguageModelSession(instructions: Self.instructions)
-            self.session = session
             session.prewarm()
-            note("prewarm() called")
-            noteMemory("after prewarm")
+            self.session = session
         case .unavailable(let reason):
-            note("Apple model: UNAVAILABLE — \(reason)")
+            note("Apple model: unavailable — \(reason)")
         }
     }
 
-    // Question 2: log everything the host app offers.
-    private func dumpInputs(_ items: [NSExtensionItem]) async {
-        note("inputItems: \(items.count)")
-        for (i, item) in items.enumerated() {
-            if let text = item.attributedContentText?.string, !text.isEmpty {
-                note("item[\(i)] attributedContentText: \(text.prefix(300))")
-                if postText.isEmpty { postText = text }
-            }
-            if let title = item.attributedTitle?.string { note("item[\(i)] attributedTitle: \(title)") }
-            for (j, provider) in (item.attachments ?? []).enumerated() {
-                note("item[\(i)].att[\(j)] types: \(provider.registeredTypeIdentifiers.joined(separator: ", "))")
-                for type in provider.registeredTypeIdentifiers {
-                    await load(provider, typeID: type, label: "item[\(i)].att[\(j)] \(type)")
+    private func extractInputs(_ items: [NSExtensionItem]) async -> (URL?, String) {
+        var url: URL?
+        var text = ""
+        for item in items {
+            if let t = item.attributedContentText?.string, !t.isEmpty, text.isEmpty { text = t }
+            for provider in item.attachments ?? [] {
+                note("attachment types: \(provider.registeredTypeIdentifiers.joined(separator: ", "))")
+                if url == nil, provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
+                   let u = try? await provider.loadItem(forTypeIdentifier: UTType.url.identifier) as? URL,
+                   !u.isFileURL {
+                    url = u
+                }
+                if text.isEmpty, provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
+                   let t = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String {
+                    if let u = URL(string: t.trimmingCharacters(in: .whitespacesAndNewlines)), u.scheme?.hasPrefix("http") == true {
+                        url = url ?? u
+                    } else {
+                        text = t
+                    }
                 }
             }
         }
+        note("url: \(url?.absoluteString ?? "none"), text: \(text.prefix(120))")
+        return (url, text)
     }
 
-    private func load(_ provider: NSItemProvider, typeID: String, label: String) async {
-        do {
-            let value = try await provider.loadItem(forTypeIdentifier: typeID)
-            switch value {
-            case let url as URL:
-                note("\(label) = URL \(url.absoluteString)")
-                if sharedURL == nil, !url.isFileURL { sharedURL = url }
-            case let text as String:
-                note("\(label) = String \(text.prefix(300))")
-                if postText.isEmpty, URL(string: text)?.scheme == nil { postText = text }
-                if sharedURL == nil, let url = URL(string: text), url.scheme?.hasPrefix("http") == true { sharedURL = url }
-            case let data as Data:
-                note("\(label) = Data \(data.count) bytes")
-            default:
-                note("\(label) = \(type(of: value as Any)) \(String(describing: value).prefix(200))")
-            }
-        } catch {
-            note("\(label) load failed: \(error.localizedDescription)")
-        }
-    }
-
-    // X shares a link; fetch the tweet text from X's keyless oEmbed endpoint.
-    private func fetchTweetTextIfNeeded() async {
-        guard let url = sharedURL,
-              let host = url.host, host.hasSuffix("x.com") || host.hasSuffix("twitter.com"),
-              url.path.contains("/status/") else { return }
-        var comps = URLComponents(string: "https://publish.x.com/oembed")!
-        comps.queryItems = [
-            URLQueryItem(name: "url", value: url.absoluteString),
-            URLQueryItem(name: "omit_script", value: "1"),
-        ]
-        do {
+    private func buildContext(url: URL?, text: String) async throws -> PostContext {
+        if let url, TweetFetcher.isTweetURL(url) {
             let t0 = Date()
-            let (data, _) = try await URLSession.shared.data(from: comps.url!)
-            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            let html = json?["html"] as? String ?? ""
-            postAuthor = json?["author_name"] as? String ?? ""
-            let text = Self.tweetText(fromEmbedHTML: html)
-            note("oEmbed \(Int(Date().timeIntervalSince(t0) * 1000))ms → @\(postAuthor): \(text.prefix(200))")
-            if !text.isEmpty { postText = text }
-        } catch {
-            note("oEmbed failed: \(error.localizedDescription)")
+            let ctx = try await TweetFetcher.fetch(url)
+            note("fetched in \(Int(Date().timeIntervalSince(t0) * 1000))ms")
+            kind = .reply
+            return ctx
         }
+        guard !text.isEmpty else { throw URLError(.zeroByteResource) }
+        // Shared text (e.g. selected from an email) — treat as an email to reply to.
+        kind = .email
+        return PostContext(
+            url: url?.absoluteString ?? "",
+            platform: "Other",
+            thread: [],
+            target: PostContext.Post(name: "", handle: "", text: String(text.prefix(4000))),
+            quoted: nil
+        )
     }
 
-    static func tweetText(fromEmbedHTML html: String) -> String {
-        guard let open = html.range(of: "<p"),
-              let gt = html.range(of: ">", range: open.upperBound..<html.endIndex),
-              let close = html.range(of: "</p>", range: gt.upperBound..<html.endIndex)
-        else { return "" }
-        var s = String(html[gt.upperBound..<close.lowerBound])
-        s = s.replacingOccurrences(of: "<br>", with: "\n")
-        s = s.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-        for (entity, char) in ["&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&mdash;": "—"] {
-            s = s.replacingOccurrences(of: entity, with: char)
-        }
-        return s.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    // MARK: Path A — Apple model in the sheet
 
-    // Question 1: generate inside the extension, logging memory and latency.
     func generate() async {
-        guard let session else { note("Skipping generation — Apple model unavailable."); return }
-        guard !session.isResponding else { return }
-        isGenerating = true
+        guard let session, let context, !session.isResponding else { return }
+        phase = .writing
         draft = ""
-        defer { isGenerating = false }
-
-        let prompt = Self.prompt(kind: kind, post: postText, author: postAuthor)
         let t0 = Date()
-        var firstToken: Date?
-        noteMemory("before generate (\(kind.rawValue))")
+        noteMemory("before generate")
         do {
-            for try await snapshot in session.streamResponse(to: prompt) {
-                if firstToken == nil {
-                    firstToken = Date()
-                    note("first token after \(Int(firstToken!.timeIntervalSince(t0) * 1000))ms")
-                    noteMemory("first token")
-                }
+            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, context: context)) {
                 draft = snapshot.content
             }
-            note("done in \(Int(Date().timeIntervalSince(t0) * 1000))ms, \(draft.count) chars")
+            note("generated in \(Int(Date().timeIntervalSince(t0) * 1000))ms")
             noteMemory("after generate")
+            phase = .drafted
         } catch {
             note("generation error: \(error)")
-            noteMemory("after error")
+            phase = .failed("Apple Intelligence couldn't write this one. Try again, or open DM Marketer to use your downloaded model.")
         }
     }
 
     func regenerate() {
-        // Fresh session per draft — this is a one-shot task, no transcript to keep.
+        // Fresh session per draft — one-shot task, no transcript worth keeping.
         session = LanguageModelSession(instructions: Self.instructions)
         Task { await generate() }
     }
 
-    // Question 3: can a share extension open a URL at all?
-    func testOpenIntent() {
-        let text = draft.isEmpty ? "test" : draft
-        var comps = URLComponents(string: "https://x.com/intent/post")!
-        comps.queryItems = [URLQueryItem(name: "text", value: text)]
-        if let id = sharedURL?.pathComponents.last, sharedURL?.path.contains("/status/") == true {
-            comps.queryItems?.append(URLQueryItem(name: "in_reply_to", value: id))
-        }
-        guard let url = comps.url, let ctx = extensionContext else { return }
-        note("extensionContext.open(\(url.absoluteString.prefix(80))…)")
-        ctx.open(url) { ok in
-            Task { @MainActor in self.note("open returned \(ok)") }
-        }
-    }
-
-    func copyDraftAndClose() {
+    func copyAndClose() {
         UIPasteboard.general.string = draft
-        extensionContext?.completeRequest(returningItems: [])
+        copied = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            extensionContext?.completeRequest(returningItems: [])
+        }
     }
 
-    func copyReport() {
-        UIPasteboard.general.string = report
-        note("Report copied to clipboard.")
+    // MARK: Path B — hand off to the app
+
+    private func handOffToApp() async {
+        guard let context else { return }
+        do {
+            try PendingShareStore.save(context)
+        } catch {
+            note("save failed: \(error)")
+            phase = .failed("Couldn't pass this post to DM Marketer.")
+            return
+        }
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        notificationsAllowed = settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+        note("notifications: \(settings.authorizationStatus.rawValue)")
+        if notificationsAllowed {
+            let content = UNMutableNotificationContent()
+            content.title = "Tap to write your reply"
+            content.body = context.summary
+            let request = UNNotificationRequest(identifier: "pending-share", content: content, trigger: nil)
+            try? await center.add(request)
+        }
+        phase = .handedOff
     }
 
     func close() {
@@ -266,70 +221,159 @@ final class SpikeModel {
 
     static let instructions = """
     You write short, human outreach messages on behalf of an indie app maker. \
-    Write like a real person, not a brand. Be specific to the post. \
+    Write like a real person, not a brand. Be specific to the post and the conversation around it. \
     No hashtags, no links, no em dashes. Output only the message text.
     """
 
-    static func prompt(kind: DraftKind, post: String, author: String) -> String {
+    static func prompt(kind: DraftKind, context: PostContext) -> String {
         let format: String
         switch kind {
-        case .reply: format = "A public reply to their tweet. Under 240 characters. Add value first; mention the product only if it fits naturally."
-        case .dm:    format = "A private X DM. Under 280 characters. Reference something specific from their post, then a soft mention of the product."
-        case .email: format = "A reply to the email below. 3–5 short sentences, friendly and direct, signed off without a name."
+        case .reply: format = "A public reply to the post. Under 240 characters. Add value first; mention the product only if it fits naturally."
+        case .dm:    format = "A private X DM to the post's author. Under 280 characters. Reference something specific they said, then a soft mention of the product."
+        case .email: format = "A reply to the email. 3–5 short sentences, friendly and direct, signed off without a name."
         }
-        let who = author.isEmpty ? "" : " by \(author)"
         return """
         PRODUCT:
         \(product)
 
-        POST\(who):
-        \(post.prefix(2000))
+        CONVERSATION:
+        \(context.promptText.prefix(3000))
 
         FORMAT: \(format)
         """
+    }
+
+    // MARK: Diagnostics
+
+    func note(_ line: String) {
+        let ms = Int(Date().timeIntervalSince(started) * 1000)
+        log.append("[\(ms)ms] \(line)")
+    }
+
+    func noteMemory(_ label: String) {
+        note("MEM \(label): available=\(os_proc_available_memory() / 1_048_576) MB")
+    }
+
+    func copyReport() {
+        let device = UIDevice.current
+        let header = "ColdFlow share — \(device.model) iOS \(device.systemVersion)"
+        UIPasteboard.general.string = ([header] + log + ["", "CONTEXT:", context?.promptText ?? "", "", "DRAFT:", draft])
+            .joined(separator: "\n")
+    }
+
+    func testOpenIntent() {
+        var comps = URLComponents(string: "https://x.com/intent/post")!
+        comps.queryItems = [URLQueryItem(name: "text", value: draft.isEmpty ? "test" : draft)]
+        guard let url = comps.url, let ctx = extensionContext else { return }
+        ctx.open(url) { ok in
+            Task { @MainActor in self.note("extensionContext.open returned \(ok)") }
+        }
     }
 }
 
 // MARK: - View
 
-struct SpikeView: View {
-    @Bindable var spike: SpikeModel
+struct ShareSheetView: View {
+    @Bindable var share: ShareModel
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Draft") {
-                    Picker("Format", selection: $spike.kind) {
-                        ForEach(DraftKind.allCases) { Text($0.rawValue).tag($0) }
+                statusSection
+                if let context = share.context {
+                    Section("What I read") {
+                        Text(context.promptText)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(8)
                     }
-                    .pickerStyle(.segmented)
-                    .onChange(of: spike.kind) { spike.regenerate() }
-
-                    if spike.isGenerating && spike.draft.isEmpty {
-                        ProgressView("Writing…")
-                    } else {
-                        Text(spike.draft.isEmpty ? "No draft yet" : spike.draft)
-                            .textSelection(.enabled)
-                    }
-                    Button("Copy draft & close") { spike.copyDraftAndClose() }
-                        .disabled(spike.draft.isEmpty)
-                    Button("Regenerate") { spike.regenerate() }
-                        .disabled(spike.isGenerating)
-                    Button("Test: open X intent from extension") { spike.testOpenIntent() }
                 }
-                Section("Report") {
-                    Button("Copy report") { spike.copyReport() }
-                    ForEach(Array(spike.log.enumerated()), id: \.offset) { _, line in
-                        Text(line).font(.caption.monospaced())
+                Section {
+                    DisclosureGroup("Diagnostics") {
+                        Button("Copy report") { share.copyReport() }
+                        Button("Test: open X from the sheet") { share.testOpenIntent() }
+                        ForEach(Array(share.log.enumerated()), id: \.offset) { _, line in
+                            Text(line).font(.caption2.monospaced())
+                        }
                     }
                 }
             }
-            .navigationTitle("ColdFlow spike")
+            .navigationTitle("DM Marketer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { spike.close() }
+                    Button("Close") { share.close() }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var statusSection: some View {
+        switch share.phase {
+        case .reading:
+            Section {
+                Label {
+                    Text("Reading the post and its thread…")
+                } icon: {
+                    ProgressView()
+                }
+            }
+
+        case .writing, .drafted:
+            Section {
+                Picker("Format", selection: $share.kind) {
+                    ForEach(DraftKind.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: share.kind) { share.regenerate() }
+
+                if share.draft.isEmpty {
+                    Label { Text("Writing with Apple Intelligence…") } icon: { ProgressView() }
+                } else {
+                    Text(share.draft).textSelection(.enabled)
+                }
+            } footer: {
+                if share.phase == .drafted {
+                    Text("Copy, then paste it into X. Not quite right? Switch format or write another.")
+                }
+            }
+            Section {
+                Button {
+                    share.copyAndClose()
+                } label: {
+                    Label(share.copied ? "Copied — paste it in X" : "Copy & close",
+                          systemImage: share.copied ? "checkmark.circle.fill" : "doc.on.doc")
+                        .font(.headline)
+                }
+                .disabled(share.phase != .drafted || share.copied)
+                Button("Write another version") { share.regenerate() }
+                    .disabled(share.phase != .drafted)
+            }
+
+        case .handedOff:
+            Section {
+                Label {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Saved \(share.context?.summary ?? "the post")").font(.headline)
+                        Text(share.notificationsAllowed
+                             ? "Tap the DM Marketer notification to write your reply with your downloaded model."
+                             : "Open DM Marketer to write your reply — the post will be waiting.")
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                Button("Done") { share.close() }
+                    .font(.headline)
+            } footer: {
+                Text("Writing right here in the share sheet needs Apple Intelligence (iPhone 15 Pro or newer).")
+            }
+
+        case .failed(let message):
+            Section {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                Button("Close") { share.close() }
             }
         }
     }

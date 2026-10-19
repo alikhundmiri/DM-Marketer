@@ -3,9 +3,12 @@ import SwiftData
 
 struct TopicsListView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(AppState.self) private var appState
     @Query(sort: \Topic.createdAt, order: .reverse) private var topics: [Topic]
 
     @State private var showingNewTopic = false
+    @State private var isReadingPaste = false
+    @State private var pasteError: String?
 
     var body: some View {
         NavigationStack {
@@ -19,6 +22,21 @@ struct TopicsListView: View {
             .navigationTitle("ColdFlow")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                // Second way in, besides the share sheet: Copy link in X, then paste here.
+                // PasteButton reads the clipboard without the "Allow Paste?" prompt.
+                ToolbarItem(placement: .topBarLeading) {
+                    if isReadingPaste {
+                        ProgressView()
+                    } else {
+                        PasteButton(payloadType: String.self) { strings in
+                            guard let pasted = strings.first else { return }
+                            Task { await handlePaste(pasted) }
+                        }
+                        .labelStyle(.titleAndIcon)
+                        .buttonBorderShape(.capsule)
+                        .tint(.cfCyan)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingNewTopic = true
@@ -32,6 +50,14 @@ struct TopicsListView: View {
             }
             .sheet(isPresented: $showingNewTopic) {
                 TopicFormView()
+            }
+            .alert("Couldn't read that", isPresented: Binding(
+                get: { pasteError != nil },
+                set: { if !$0 { pasteError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(pasteError ?? "")
             }
         }
     }
@@ -62,6 +88,31 @@ struct TopicsListView: View {
             .onDelete(perform: deleteTopics)
         }
         .listStyle(.insetGrouped)
+    }
+
+    // MARK: - Paste
+
+    /// An X link is fetched with its thread; anything else is treated as text to reply to.
+    private func handlePaste(_ pasted: String) async {
+        let trimmed = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed), TweetFetcher.isTweetURL(url) {
+            isReadingPaste = true
+            defer { isReadingPaste = false }
+            do {
+                appState.pendingShare = PendingShare(try await TweetFetcher.fetch(url))
+            } catch {
+                pasteError = "Couldn't load that post. Check your connection and try again."
+            }
+        } else if !trimmed.isEmpty {
+            let context = PostContext(
+                url: "",
+                platform: SourcePlatform.other.rawValue,
+                thread: [],
+                target: PostContext.Post(name: "", handle: "", text: String(trimmed.prefix(4000))),
+                quoted: nil
+            )
+            appState.pendingShare = PendingShare(context)
+        }
     }
 
     private func deleteTopics(at offsets: IndexSet) {

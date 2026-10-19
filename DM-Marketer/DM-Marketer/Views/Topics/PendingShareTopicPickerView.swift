@@ -28,6 +28,7 @@ struct PendingShareTopicPickerView: View {
 
     /// Generate a short title from the first few words of the shared text.
     private var autoTitle: String {
+        if !share.title.isEmpty { return share.title }
         let words = share.text.split(separator: " ").prefix(5)
         let joined = words.joined(separator: " ")
         return joined.isEmpty ? "Shared post" : joined
@@ -73,6 +74,10 @@ struct PendingShareTopicPickerView: View {
             .navigationDestination(item: $createdChat) { chat in
                 ChatView(chat: chat, topic: chat.topic!)
             }
+        }
+        .onAppear {
+            // One topic means there's nothing to choose — go straight to writing.
+            if topics.count == 1, createdChat == nil { createChat(for: topics[0]) }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

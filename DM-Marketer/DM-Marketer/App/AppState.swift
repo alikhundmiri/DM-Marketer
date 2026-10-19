@@ -5,6 +5,13 @@ struct PendingShare {
     var text: String
     var url: String
     var platform: String
+    var title: String = ""
+}
+
+extension PendingShare {
+    init(_ context: PostContext) {
+        self.init(text: context.promptText, url: context.url, platform: context.platform, title: context.title)
+    }
 }
 
 /// Central state shared across the app via SwiftUI's @Observable + .environment().

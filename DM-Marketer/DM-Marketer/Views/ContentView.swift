@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 enum AppTab: Hashable {
     case topics, models
@@ -7,6 +8,7 @@ enum AppTab: Hashable {
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.scenePhase) private var scenePhase
     @Query(filter: #Predicate<LLMModel> { $0.isDefault == true && $0.isDownloaded == true })
     private var defaultModels: [LLMModel]
 
@@ -31,6 +33,17 @@ struct ContentView: View {
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .sheet(item: pendingShareBinding) { share in
             PendingShareTopicPickerView(share: share.share)
+        }
+        // The Share Extension can't open the app, so it leaves the post in the App Group
+        // and posts a notification. Whenever we become active, pick it up.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active, let context = PendingShareStore.take() else { return }
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["pending-share"])
+            appState.pendingShare = PendingShare(context)
+        }
+        .task {
+            // Needed for the share sheet's "tap to write your reply" notification.
+            _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
         }
         .task(id: defaultModels.first?.id) {
             guard let model = defaultModels.first, let url = model.localURL else { return }

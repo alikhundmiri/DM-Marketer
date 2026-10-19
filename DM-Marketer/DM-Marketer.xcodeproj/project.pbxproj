@@ -106,6 +106,11 @@
 			path = "DM-MarketerUITests";
 			sourceTree = "<group>";
 		};
+		0AC5A0012F95000000E53B5D /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		0A2342612F8CA3DE00E53B5D /* ShareExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -158,6 +163,7 @@
 				0A2342182F8BD7AE00E53B5D /* DM-MarketerTests */,
 				0A2342222F8BD7AE00E53B5D /* DM-MarketerUITests */,
 				0A2342612F8CA3DE00E53B5D /* ShareExtension */,
+				0AC5A0012F95000000E53B5D /* Shared */,
 				0A99E4C22F9097C30004D368 /* Frameworks */,
 				0A2342072F8BD7AA00E53B5D /* Products */,
 			);
@@ -201,6 +207,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0A2342082F8BD7AA00E53B5D /* DM-Marketer */,
+				0AC5A0012F95000000E53B5D /* Shared */,
 			);
 			name = "DM-Marketer";
 			packageProductDependencies = (
@@ -269,6 +276,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0A2342612F8CA3DE00E53B5D /* ShareExtension */,
+				0AC5A0012F95000000E53B5D /* Shared */,
 			);
 			name = ShareExtension;
 			packageProductDependencies = (
