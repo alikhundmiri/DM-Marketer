@@ -47,7 +47,7 @@ struct TopicFormView: View {
                 } header: {
                     Text("Link")
                 } footer: {
-                    Text("App Store link, landing page, or any URL to include in the DM.")
+                    Text("App Store link, landing page, or any URL. Mentioned only when it fits.")
                 }
             }
             .navigationTitle(isEditing ? "Edit Topic" : "New Topic")

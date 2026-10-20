@@ -95,7 +95,7 @@ struct TopicsListView: View {
         ScrollView {
             MascotEmptyState(
                 headline: "Flow starts here",
-                subheadline: "Create a topic for each product or campaign. Your AI writes the DM, you send the flow.",
+                subheadline: "Add what you promote. Then share a post to DM Marketer and get a reply written in your voice.",
                 actionLabel: "Create your first topic",
                 action: { showingNewTopic = true }
             )
