@@ -8,6 +8,7 @@ enum AppTab: Hashable {
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
 
     @Query private var topics: [Topic]
     @AppStorage("hasOnboarded") private var hasOnboarded = false
@@ -40,7 +41,10 @@ struct ContentView: View {
         // The Share Extension can't open the app, so it leaves the post in the App Group
         // and posts a notification. Whenever we become active, pick it up.
         .onChange(of: scenePhase, initial: true) { _, phase in
-            guard phase == .active, let context = PendingShareStore.take() else { return }
+            guard phase == .active else { return }
+            // Replies copied in the share sheet become Engagements.
+            for item in EngagementInbox.takeAll() { modelContext.insert(Engagement(item)) }
+            guard let context = PendingShareStore.take() else { return }
             appState.pendingShare = PendingShare(context)
         }
         // Keep the Share Extension's copy of the user's Topics current.

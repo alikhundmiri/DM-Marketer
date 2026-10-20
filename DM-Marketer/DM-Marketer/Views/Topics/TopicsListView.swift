@@ -20,6 +20,7 @@ struct TopicsListView: View {
                     topicList
                 }
             }
+            .safeAreaInset(edge: .bottom) { QuotaBar() }
             .navigationTitle("ColdFlow")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -37,6 +38,14 @@ struct TopicsListView: View {
                         .buttonBorderShape(.capsule)
                         .tint(.cfCyan)
                     }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink(destination: EngagementsView()) {
+                        Image(systemName: "tray.full")
+                            .font(.title3)
+                            .foregroundStyle(Color.cfCyan)
+                    }
+                    .accessibilityLabel("Replies")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showingVoice = true } label: {

@@ -8,12 +8,14 @@ import UIKit
 struct DM_MarketerApp: App {
     // @State is correct for @Observable objects (not @StateObject, which is for ObservableObject)
     @State private var appState = AppState()
+    @State private var purchaseStore = PurchaseStore()
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Topic.self,
             Chat.self,
             Message.self,
+            Engagement.self,
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
@@ -27,10 +29,14 @@ struct DM_MarketerApp: App {
         WindowGroup {
             ContentView()
                 .environment(appState)
+                .environment(purchaseStore)
                 .onOpenURL { url in
                     handleIncomingURL(url)
                 }
-                .task { appState.refreshAvailability() }
+                .task {
+                    appState.refreshAvailability()
+                    await purchaseStore.start()
+                }
                 // The user may have just turned Apple Intelligence on in Settings.
                 .onReceive(NotificationCenter.default.publisher(
                     for: UIApplication.willEnterForegroundNotification)

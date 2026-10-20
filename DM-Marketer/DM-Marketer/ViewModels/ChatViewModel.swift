@@ -7,6 +7,8 @@ final class ChatViewModel {
     var inputText: String = ""
     var isGenerating: Bool = false
     var errorMessage: String?
+    /// Set when the free drafts are used up; ChatView shows the paywall.
+    var needsPaywall = false
     var streamingBuffer: String = ""
 
     private var streamTask: Task<Void, Never>?
@@ -40,6 +42,8 @@ final class ChatViewModel {
     /// "Generate a personalized DM for this person." as a user message.
     func autoGenerateFirstDM(chat: Chat, topic: Topic, context: ModelContext) {
         guard chat.messages.isEmpty, !isGenerating, llmService.isModelLoaded else { return }
+        guard DraftQuota.canDraft else { needsPaywall = true; return }
+        DraftQuota.consume()
 
         let systemPrompt = PromptBuilder.systemPrompt(topic: topic, chat: chat)
         let seed = [ChatMessage(role: .user, content: PromptBuilder.firstUserMessage())]

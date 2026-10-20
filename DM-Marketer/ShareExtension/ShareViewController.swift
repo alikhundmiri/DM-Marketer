@@ -60,6 +60,11 @@ final class ShareModel {
     var kind: DraftKind = .reply
     var draft = ""
     var copied = false
+    private var countedThisShare = false
+
+    var quotaText: String {
+        DraftQuota.isUnlocked ? "" : "\(DraftQuota.remaining) of \(DraftQuota.freeLimit) free drafts left."
+    }
     var log: [String] = []
 
     private let started = Date()
@@ -154,6 +159,10 @@ final class ShareModel {
 
     func generate() async {
         guard let session, let context, let topic = selectedTopic, !session.isResponding else { return }
+        if !countedThisShare, !DraftQuota.canDraft {
+            phase = .failed("You've used your \(DraftQuota.freeLimit) free drafts. Open DM Marketer to unlock unlimited drafts.")
+            return
+        }
         SharedTopicStore.lastUsedID = topic.id
         phase = .writing
         draft = ""
@@ -165,6 +174,10 @@ final class ShareModel {
             }
             note("generated in \(Int(Date().timeIntervalSince(t0) * 1000))ms")
             noteMemory("after generate")
+            if !countedThisShare {
+                DraftQuota.consume()
+                countedThisShare = true
+            }
             phase = .drafted
         } catch {
             note("generation error: \(error)")
@@ -181,6 +194,15 @@ final class ShareModel {
     func copyAndClose() {
         UIPasteboard.general.string = draft
         copied = true
+        if let context {
+            EngagementInbox.append(PendingEngagement(
+                postURL: context.url,
+                handle: context.target.handle,
+                snippet: String(context.target.text.prefix(140)),
+                draft: draft,
+                kind: kind.rawValue
+            ))
+        }
         Task {
             try? await Task.sleep(for: .milliseconds(700))
             extensionContext?.completeRequest(returningItems: [])
@@ -292,7 +314,7 @@ struct ShareSheetView: View {
                 }
             } footer: {
                 if share.phase == .drafted {
-                    Text("Copy, then paste it into X. Not quite right? Switch format or write another.")
+                    Text("Copy, then paste it into X. Not quite right? Switch format or write another. \(share.quotaText)")
                 }
             }
             Section {

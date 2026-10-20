@@ -50,6 +50,7 @@ struct ChatView: View {
             guard isLoaded, chat.messages.isEmpty, !viewModel.isGenerating else { return }
             viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
         }
+        .sheet(isPresented: $viewModel.needsPaywall) { PaywallView() }
         .onDisappear {
             viewModel.cancelGeneration()
         }
