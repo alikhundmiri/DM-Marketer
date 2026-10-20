@@ -7,6 +7,7 @@ struct TopicsListView: View {
     @Query(sort: \Topic.createdAt, order: .reverse) private var topics: [Topic]
 
     @State private var showingNewTopic = false
+    @State private var showingVoice = false
     @State private var isReadingPaste = false
     @State private var pasteError: String?
 
@@ -38,6 +39,14 @@ struct TopicsListView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
+                    Button { showingVoice = true } label: {
+                        Image(systemName: "text.quote")
+                            .font(.title3)
+                            .foregroundStyle(Color.cfCyan)
+                    }
+                    .accessibilityLabel("Your voice")
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingNewTopic = true
                     } label: {
@@ -50,6 +59,9 @@ struct TopicsListView: View {
             }
             .sheet(isPresented: $showingNewTopic) {
                 TopicFormView()
+            }
+            .sheet(isPresented: $showingVoice) {
+                VoiceCardView()
             }
             .alert("Couldn't read that", isPresented: Binding(
                 get: { pasteError != nil },

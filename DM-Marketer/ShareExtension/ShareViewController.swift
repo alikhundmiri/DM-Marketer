@@ -206,10 +206,12 @@ final class ShareModel {
         case .dm:    format = "A private X DM to the post's author. Under 280 characters. Reference something specific they said, then a soft mention of the product."
         case .email: format = "A reply to the email. 3–5 short sentences, friendly and direct, signed off without a name."
         }
+        let voice = VoiceCardStore.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let voiceSection = voice.isEmpty ? "" : "\nMY VOICE (write the way I write):\n\(voice)\n"
         return """
         PRODUCT:
         \(topic.promptText)
-
+        \(voiceSection)
         CONVERSATION:
         \(context.promptText.prefix(3000))
 

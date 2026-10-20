@@ -38,9 +38,12 @@ Before writing the DM, silently observe:
 
         // Trim product description to keep prompt focused
         let rawDesc = topic.promotionDescription
-        let productDesc = rawDesc.count > 600
-            ? String(rawDesc.prefix(600)) + "…"
+        let productDesc = rawDesc.count > ContextBudget.productCardLimit
+            ? String(rawDesc.prefix(ContextBudget.productCardLimit)) + "…"
             : rawDesc
+
+        let voice = VoiceCardStore.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let voiceSection = voice.isEmpty ? "" : "\nMY VOICE (write the way I write):\n\(voice)\n"
 
         return """
         You are helping write a single outreach DM on behalf of the maker of this product.
@@ -49,7 +52,7 @@ Before writing the DM, silently observe:
 
         PRODUCT / SERVICE TO PROMOTE:
         \(productDesc)
-        \(postSection)
+        \(voiceSection)\(postSection)
         PLATFORM: \(platformGuide)
 
         WRITING GUIDELINES:

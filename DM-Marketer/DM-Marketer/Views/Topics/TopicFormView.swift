@@ -28,10 +28,15 @@ struct TopicFormView: View {
                 Section {
                     TextEditor(text: $promotionDescription)
                         .frame(minHeight: 100)
+                        .onChange(of: promotionDescription) { _, new in
+                            if new.count > ContextBudget.productCardLimit {
+                                promotionDescription = String(new.prefix(ContextBudget.productCardLimit))
+                            }
+                        }
                 } header: {
                     Text("What You're Promoting")
                 } footer: {
-                    Text("Describe your product and the problem it solves. The LLM uses this to craft personalized DMs.")
+                    Text("\(promotionDescription.count)/\(ContextBudget.productCardLimit). What it is and the problem it solves. Kept short so it fits Apple Intelligence's small context window.")
                 }
 
                 Section {

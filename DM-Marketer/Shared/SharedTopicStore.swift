@@ -11,7 +11,7 @@ nonisolated struct SharedTopic: Codable, Identifiable, Equatable {
 
     /// The product block that goes into the prompt.
     var promptText: String {
-        var text = "\(name): \(promotionDescription)"
+        var text = "\(name): \(promotionDescription.prefix(ContextBudget.productCardLimit))"
         if !link.isEmpty { text += "\nLink (only if it fits): \(link)" }
         return text
     }
