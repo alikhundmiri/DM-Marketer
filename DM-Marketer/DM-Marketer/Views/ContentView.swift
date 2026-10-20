@@ -10,12 +10,15 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @Query private var topics: [Topic]
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
 
     @State private var selectedTab: AppTab = .topics
 
     var body: some View {
         if let reason = appState.unavailableReason {
             UnsupportedDeviceView(reason: reason)
+        } else if !hasOnboarded {
+            OnboardingView()
         } else {
             mainContent
         }
