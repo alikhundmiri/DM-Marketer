@@ -8,6 +8,7 @@ struct TopicsListView: View {
 
     @State private var showingNewTopic = false
     @State private var showingVoice = false
+    @State private var showingStats = false
     @State private var isReadingPaste = false
     @State private var pasteError: String?
 
@@ -48,12 +49,14 @@ struct TopicsListView: View {
                     .accessibilityLabel("Replies")
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button { showingVoice = true } label: {
-                        Image(systemName: "text.quote")
+                    Menu {
+                        Button { showingVoice = true } label: { Label("Your voice", systemImage: "text.quote") }
+                        Button { showingStats = true } label: { Label("Your stats", systemImage: "chart.bar") }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                             .font(.title3)
                             .foregroundStyle(Color.cfCyan)
                     }
-                    .accessibilityLabel("Your voice")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -71,6 +74,9 @@ struct TopicsListView: View {
             }
             .sheet(isPresented: $showingVoice) {
                 VoiceCardView()
+            }
+            .sheet(isPresented: $showingStats) {
+                StatsView()
             }
             .alert("Couldn't read that", isPresented: Binding(
                 get: { pasteError != nil },

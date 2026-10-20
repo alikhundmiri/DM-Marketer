@@ -42,6 +42,7 @@ struct ContentView: View {
         // and posts a notification. Whenever we become active, pick it up.
         .onChange(of: scenePhase, initial: true) { _, phase in
             guard phase == .active else { return }
+            UsageStats.recordActiveDay()
             // Replies copied in the share sheet become Engagements.
             for item in EngagementInbox.takeAll() { modelContext.insert(Engagement(item)) }
             guard let context = PendingShareStore.take() else { return }

@@ -61,6 +61,8 @@ final class ShareModel {
     var draft = ""
     var copied = false
     private var countedThisShare = false
+    /// Characters of conversation sent to the model; lowered if the 4,096-token window overflows.
+    private var conversationLimit = 3000
 
     var quotaText: String {
         DraftQuota.isUnlocked ? "" : "\(DraftQuota.remaining) of \(DraftQuota.freeLimit) free drafts left."
@@ -75,6 +77,7 @@ final class ShareModel {
 
     func start(items: [NSExtensionItem]) {
         noteMemory("launch")
+        UsageStats.recordActiveDay()
         selectedTopicID = SharedTopicStore.lastUsedID.flatMap { id in topics.first { $0.id == id }?.id } ?? topics.first?.id
         prepareAppleModel()   // prewarm while we fetch the post
         Task {
@@ -169,23 +172,37 @@ final class ShareModel {
         let t0 = Date()
         noteMemory("before generate")
         do {
-            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, topic: topic, context: context)) {
+            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, topic: topic, context: context, conversationLimit: conversationLimit)) {
                 draft = snapshot.content
             }
             note("generated in \(Int(Date().timeIntervalSince(t0) * 1000))ms")
             noteMemory("after generate")
+            UsageStats.recordDraft(milliseconds: Int(Date().timeIntervalSince(t0) * 1000))
             if !countedThisShare {
                 DraftQuota.consume()
                 countedThisShare = true
             }
             phase = .drafted
+        } catch let error as LanguageModelSession.GenerationError {
+            if case .exceededContextWindowSize = error, conversationLimit > 800 {
+                // Long thread: retry once with less of it.
+                conversationLimit = 800
+                self.session = LanguageModelSession(instructions: Self.instructions)
+                await generate()
+                return
+            }
+            UsageStats.recordError()
+            note("generation error: \(error)")
+            phase = .failed("Apple Intelligence couldn't write this one. Try again in a moment.")
         } catch {
+            UsageStats.recordError()
             note("generation error: \(error)")
             phase = .failed("Apple Intelligence couldn't write this one. Try again in a moment.")
         }
     }
 
     func regenerate() {
+        UsageStats.recordRewrite()
         // Fresh session per draft — one-shot task, no transcript worth keeping.
         session = LanguageModelSession(instructions: Self.instructions)
         Task { await generate() }
@@ -194,6 +211,7 @@ final class ShareModel {
     func copyAndClose() {
         UIPasteboard.general.string = draft
         copied = true
+        UsageStats.recordCopy()
         if let context {
             EngagementInbox.append(PendingEngagement(
                 postURL: context.url,
@@ -221,7 +239,7 @@ final class ShareModel {
     No hashtags, no links, no em dashes. Output only the message text.
     """
 
-    static func prompt(kind: DraftKind, topic: SharedTopic, context: PostContext) -> String {
+    static func prompt(kind: DraftKind, topic: SharedTopic, context: PostContext, conversationLimit: Int) -> String {
         let format: String
         switch kind {
         case .reply: format = "A public reply to the post. Under 240 characters. Add value first; mention the product only if it fits naturally."
@@ -235,7 +253,7 @@ final class ShareModel {
         \(topic.promptText)
         \(voiceSection)
         CONVERSATION:
-        \(context.promptText.prefix(3000))
+        \(context.promptText.prefix(conversationLimit))
 
         FORMAT: \(format)
         """
