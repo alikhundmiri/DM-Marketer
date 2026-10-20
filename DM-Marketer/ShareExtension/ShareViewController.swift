@@ -1,15 +1,11 @@
 import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
-import UserNotifications
 import FoundationModels
 import os
 
-// Share sheet entry point. Two paths:
-//   • Apple Intelligence available → read the post, write the draft right here, Copy & close.
-//   • Otherwise → read the post, hand it to the app (App Group + notification), since the
-//     downloaded models are far bigger than an extension's ~100 MB memory limit.
-// A Diagnostics section keeps the spike's log for on-device testing.
+// Share sheet entry point: read the post, write the draft right here with Apple Intelligence,
+// Copy & close. Devices without Apple Intelligence are told so.
 
 class ShareViewController: UIViewController {
 
@@ -46,15 +42,16 @@ final class ShareModel {
         case reading
         case writing          // Apple model generating in the sheet
         case drafted          // draft ready to copy
-        case handedOff        // saved for the app; notification posted
         case failed(String)
     }
 
-    // Hard-coded until the app writes the active topic into the App Group.
-    static let product = """
-    ColdFlow: an iPhone app that drafts a personalised cold DM or reply from a post you share, \
-    using AI that runs on your phone. One-time purchase, no subscription.
-    """
+    /// The user's Topics, copied into the App Group by the app.
+    var topics: [SharedTopic] = SharedTopicStore.load()
+    var selectedTopicID: UUID?
+
+    var selectedTopic: SharedTopic? {
+        topics.first { $0.id == selectedTopicID } ?? topics.first
+    }
 
     weak var extensionContext: NSExtensionContext?
 
@@ -62,7 +59,6 @@ final class ShareModel {
     var context: PostContext?
     var kind: DraftKind = .reply
     var draft = ""
-    var notificationsAllowed = true
     var copied = false
     var log: [String] = []
 
@@ -74,6 +70,7 @@ final class ShareModel {
 
     func start(items: [NSExtensionItem]) {
         noteMemory("launch")
+        selectedTopicID = SharedTopicStore.lastUsedID.flatMap { id in topics.first { $0.id == id }?.id } ?? topics.first?.id
         prepareAppleModel()   // prewarm while we fetch the post
         Task {
             let (url, text) = await extractInputs(items)
@@ -85,10 +82,12 @@ final class ShareModel {
                 phase = .failed("Couldn't read this post. Check your connection and try again.")
                 return
             }
-            if appleModelReady {
+            if topics.isEmpty {
+                phase = .failed("Add what you're promoting in DM Marketer first, then share again.")
+            } else if appleModelReady {
                 await generate()
             } else {
-                await handOffToApp()
+                phase = .failed("DM Marketer needs Apple Intelligence (iPhone 15 Pro or newer). Open the app to check your device.")
             }
         }
     }
@@ -154,13 +153,14 @@ final class ShareModel {
     // MARK: Path A — Apple model in the sheet
 
     func generate() async {
-        guard let session, let context, !session.isResponding else { return }
+        guard let session, let context, let topic = selectedTopic, !session.isResponding else { return }
+        SharedTopicStore.lastUsedID = topic.id
         phase = .writing
         draft = ""
         let t0 = Date()
         noteMemory("before generate")
         do {
-            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, context: context)) {
+            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, topic: topic, context: context)) {
                 draft = snapshot.content
             }
             note("generated in \(Int(Date().timeIntervalSince(t0) * 1000))ms")
@@ -168,7 +168,7 @@ final class ShareModel {
             phase = .drafted
         } catch {
             note("generation error: \(error)")
-            phase = .failed("Apple Intelligence couldn't write this one. Try again, or open DM Marketer to use your downloaded model.")
+            phase = .failed("Apple Intelligence couldn't write this one. Try again in a moment.")
         }
     }
 
@@ -187,37 +187,6 @@ final class ShareModel {
         }
     }
 
-    // MARK: Path B — hand off to the app
-
-    private func handOffToApp() async {
-        guard let context else { return }
-        do {
-            try PendingShareStore.save(context)
-        } catch {
-            note("save failed: \(error)")
-            phase = .failed("Couldn't pass this post to DM Marketer.")
-            return
-        }
-        let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        notificationsAllowed = settings.authorizationStatus == .authorized
-            || settings.authorizationStatus == .provisional
-        note("notifications: \(settings.authorizationStatus.rawValue)")
-        if notificationsAllowed {
-            let content = UNMutableNotificationContent()
-            content.title = "Tap to write your reply"
-            content.body = context.summary
-            let request = UNNotificationRequest(identifier: "pending-share", content: content, trigger: nil)
-            try? await center.add(request)
-        }
-        phase = .handedOff
-        if notificationsAllowed {
-            // The banner carries the next step; get out of the way so it's tappable over X.
-            try? await Task.sleep(for: .milliseconds(1500))
-            close()
-        }
-    }
-
     func close() {
         extensionContext?.completeRequest(returningItems: [])
     }
@@ -230,7 +199,7 @@ final class ShareModel {
     No hashtags, no links, no em dashes. Output only the message text.
     """
 
-    static func prompt(kind: DraftKind, context: PostContext) -> String {
+    static func prompt(kind: DraftKind, topic: SharedTopic, context: PostContext) -> String {
         let format: String
         switch kind {
         case .reply: format = "A public reply to the post. Under 240 characters. Add value first; mention the product only if it fits naturally."
@@ -239,7 +208,7 @@ final class ShareModel {
         }
         return """
         PRODUCT:
-        \(product)
+        \(topic.promptText)
 
         CONVERSATION:
         \(context.promptText.prefix(3000))
@@ -258,22 +227,6 @@ final class ShareModel {
     func noteMemory(_ label: String) {
         note("MEM \(label): available=\(os_proc_available_memory() / 1_048_576) MB")
     }
-
-    func copyReport() {
-        let device = UIDevice.current
-        let header = "ColdFlow share — \(device.model) iOS \(device.systemVersion)"
-        UIPasteboard.general.string = ([header] + log + ["", "CONTEXT:", context?.promptText ?? "", "", "DRAFT:", draft])
-            .joined(separator: "\n")
-    }
-
-    func testOpenIntent() {
-        var comps = URLComponents(string: "https://x.com/intent/post")!
-        comps.queryItems = [URLQueryItem(name: "text", value: draft.isEmpty ? "test" : draft)]
-        guard let url = comps.url, let ctx = extensionContext else { return }
-        ctx.open(url) { ok in
-            Task { @MainActor in self.note("extensionContext.open returned \(ok)") }
-        }
-    }
 }
 
 // MARK: - View
@@ -291,15 +244,6 @@ struct ShareSheetView: View {
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .lineLimit(8)
-                    }
-                }
-                Section {
-                    DisclosureGroup("Diagnostics") {
-                        Button("Copy report") { share.copyReport() }
-                        Button("Test: open X from the sheet") { share.testOpenIntent() }
-                        ForEach(Array(share.log.enumerated()), id: \.offset) { _, line in
-                            Text(line).font(.caption2.monospaced())
-                        }
                     }
                 }
             }
@@ -327,6 +271,12 @@ struct ShareSheetView: View {
 
         case .writing, .drafted:
             Section {
+                if share.topics.count > 1 {
+                    Picker("Promoting", selection: $share.selectedTopicID) {
+                        ForEach(share.topics) { Text($0.name).tag(Optional($0.id)) }
+                    }
+                    .onChange(of: share.selectedTopicID) { share.regenerate() }
+                }
                 Picker("Format", selection: $share.kind) {
                     ForEach(DraftKind.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -354,25 +304,6 @@ struct ShareSheetView: View {
                 .disabled(share.phase != .drafted || share.copied)
                 Button("Write another version") { share.regenerate() }
                     .disabled(share.phase != .drafted)
-            }
-
-        case .handedOff:
-            Section {
-                Label {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Saved \(share.context?.summary ?? "the post")").font(.headline)
-                        Text(share.notificationsAllowed
-                             ? "Tap the DM Marketer notification to write your reply with your downloaded model."
-                             : "Open DM Marketer to write your reply — the post will be waiting.")
-                            .foregroundStyle(.secondary)
-                    }
-                } icon: {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                }
-                Button("Done") { share.close() }
-                    .font(.headline)
-            } footer: {
-                Text("Writing right here in the share sheet needs Apple Intelligence (iPhone 15 Pro or newer).")
             }
 
         case .failed(let message):

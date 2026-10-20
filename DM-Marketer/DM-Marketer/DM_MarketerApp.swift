@@ -2,26 +2,10 @@ import SwiftUI
 import SwiftData
 import UIKit
 
-// MARK: - AppDelegate
-
-/// Receives the background URLSession completion handler from iOS.
-/// Without this, iOS throttles or cancels future background downloads.
-final class AppDelegate: NSObject, UIApplicationDelegate {
-    func application(
-        _ application: UIApplication,
-        handleEventsForBackgroundURLSession identifier: String,
-        completionHandler: @escaping () -> Void
-    ) {
-        ModelDownloadService.shared.backgroundCompletionHandler = completionHandler
-    }
-}
-
 // MARK: - App
 
 @main
 struct DM_MarketerApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
     // @State is correct for @Observable objects (not @StateObject, which is for ObservableObject)
     @State private var appState = AppState()
 
@@ -30,7 +14,6 @@ struct DM_MarketerApp: App {
             Topic.self,
             Chat.self,
             Message.self,
-            LLMModel.self,
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
         do {
@@ -47,25 +30,12 @@ struct DM_MarketerApp: App {
                 .onOpenURL { url in
                     handleIncomingURL(url)
                 }
-                .task {
-                    ModelDownloadService.shared.reconnect()
-                }
-                // Fix 2: free GPU/RAM immediately when iOS signals memory pressure
-                .onReceive(NotificationCenter.default.publisher(
-                    for: UIApplication.didReceiveMemoryWarningNotification)
-                ) { _ in
-                    print("[Memory] Warning received — unloading model")
-                    appState.unloadModel()
-                }
-                // No unload on background: the share flow switches to X and back constantly,
-                // and freeing the context under a running decode crashes. The memory-warning
-                // handler above still frees it when iOS actually needs the RAM.
-                // Reload on foreground in case a memory warning unloaded it.
+                .task { appState.refreshAvailability() }
+                // The user may have just turned Apple Intelligence on in Settings.
                 .onReceive(NotificationCenter.default.publisher(
                     for: UIApplication.willEnterForegroundNotification)
                 ) { _ in
-                    print("[Lifecycle] App foregrounded — reloading model")
-                    Task { await appState.reloadLastModel() }
+                    appState.refreshAvailability()
                 }
         }
         .modelContainer(sharedModelContainer)
