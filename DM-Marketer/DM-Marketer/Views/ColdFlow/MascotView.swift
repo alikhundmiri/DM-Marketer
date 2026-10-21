@@ -1,204 +1,115 @@
 import SwiftUI
 
-// MARK: - Droplet mascot
+// MARK: - SVG path shape
 
-/// Animated ColdFlow droplet mascot. Floats up-and-down and blinks.
-struct DropletMascot: View {
+/// Draws an SVG path (absolute M, C, Q, H, V, Z only) from the 1024-unit icon artwork,
+/// scaled into whatever rect it's given. Keeps the in-app mascot identical to the app icon.
+private struct SVGShape: Shape {
+    let d: String
+
+    /// The artwork's centre of mass is (512, 616); this window centres the mouth and leaves room for the yap marks.
+    static let window = CGRect(x: 40, y: 144, width: 944, height: 944)
+
+    func path(in rect: CGRect) -> Path {
+        let tokens = Self.tokens(d)
+        var path = Path()
+        var i = 0
+        var current = CGPoint.zero
+        func point(_ x: Double, _ y: Double) -> CGPoint {
+            CGPoint(x: rect.minX + (x - Self.window.minX) / Self.window.width * rect.width,
+                    y: rect.minY + (y - Self.window.minY) / Self.window.height * rect.height)
+        }
+        func num() -> Double { defer { i += 1 }; return Double(tokens[i]) ?? 0 }
+        var raw = (x: 0.0, y: 0.0)
+        while i < tokens.count {
+            let cmd = tokens[i]; i += 1
+            switch cmd {
+            case "M": raw = (num(), num()); current = point(raw.x, raw.y); path.move(to: current)
+            case "C":
+                let c1 = point(num(), num()), c2 = point(num(), num())
+                raw = (num(), num()); current = point(raw.x, raw.y)
+                path.addCurve(to: current, control1: c1, control2: c2)
+            case "Q":
+                let c = point(num(), num())
+                raw = (num(), num()); current = point(raw.x, raw.y)
+                path.addQuadCurve(to: current, control: c)
+            case "H": raw.x = num(); current = point(raw.x, raw.y); path.addLine(to: current)
+            case "V": raw.y = num(); current = point(raw.x, raw.y); path.addLine(to: current)
+            case "Z": path.closeSubpath()
+            default: break
+            }
+        }
+        return path
+    }
+
+    private static func tokens(_ d: String) -> [String] {
+        var out: [String] = [], number = ""
+        for ch in d {
+            if ch.isLetter {
+                if !number.isEmpty { out.append(number); number = "" }
+                out.append(String(ch))
+            } else if ch == " " || ch == "," {
+                if !number.isEmpty { out.append(number); number = "" }
+            } else {
+                number.append(ch)
+            }
+        }
+        if !number.isEmpty { out.append(number) }
+        return out
+    }
+}
+
+// MARK: - Yap mascot
+
+/// The SlydeBack mouth: red lips, mid-yap. Same artwork as the app icon.
+struct YapMascot: View {
     var size: CGFloat = 100
     var animated: Bool = true
 
-    @State private var floating = false
-    @State private var blinking = false
+    @State private var yapping = false
+
+    private static let upper = "M192 540 C250 420 360 340 440 372 C480 388 500 410 512 410 C524 410 544 388 584 372 C664 340 774 420 832 540 C760 500 640 480 512 480 C384 480 264 500 192 540 Z"
+    private static let lower = "M192 540 C234 700 364 770 512 770 C660 770 790 700 832 540 C800 770 660 860 512 860 C364 860 224 770 192 540 Z"
+    private static let mouth = "M192 540 C264 500 384 480 512 480 C640 480 760 500 832 540 C790 700 660 770 512 770 C364 770 234 700 192 540 Z"
+    private static let tongue = "M360 700 C380 590 644 590 664 700 C640 760 384 760 360 700 Z"
+    private static let teeth = "M270 470 H754 V580 Q754 600 734 600 H290 Q270 600 270 580 Z"
+
+    private var line: CGFloat { size * 28 / 944 }
+    private let ink = Color(red: 0x2A / 255, green: 0x0A / 255, blue: 0x1E / 255)
 
     var body: some View {
         ZStack {
-            // Soft ground shadow
-            Ellipse()
-                .fill(Color.cfCyan.opacity(0.18))
-                .frame(width: size * 0.65, height: size * 0.1)
-                .blur(radius: size * 0.05)
-                .offset(y: size * 0.54)
-                .scaleEffect(x: floating ? 0.85 : 1.0, anchor: .center)
-
-            // Body
-            DropletBodyShape()
-                .fill(LinearGradient.cfFlow)
-                .frame(width: size * 0.78, height: size)
-
-            // Shimmer highlight (upper-left of body)
-            Ellipse()
-                .fill(
-                    LinearGradient(
-                        stops: [
-                            .init(color: .white.opacity(0.42), location: 0),
-                            .init(color: .white.opacity(0),    location: 1),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: size * 0.19, height: size * 0.32)
-                .rotationEffect(.degrees(-30))
-                .offset(x: -size * 0.2, y: -size * 0.2)
-
-            // Face — positioned in the lower half of the droplet
-            VStack(spacing: size * 0.05) {
-                // Eyes row
-                HStack(spacing: size * 0.18) {
-                    MascotEye(outerSize: size * 0.15, blinking: blinking)
-                    MascotEye(outerSize: size * 0.15, blinking: blinking)
-                }
-                // Smile
-                MascotSmile(width: size * 0.28, height: size * 0.095)
-                    .stroke(Color.white,
-                            style: StrokeStyle(lineWidth: size * 0.032, lineCap: .round))
+            SVGShape(d: Self.mouth).fill(Color(red: 0x4A / 255, green: 0x0F / 255, blue: 0x24 / 255))
+            ZStack {
+                SVGShape(d: Self.tongue).fill(Color(red: 1, green: 0x7B / 255, blue: 0xA9 / 255))
+                SVGShape(d: Self.teeth).fill(.white)
+                SVGShape(d: "M391 480 V600 M512 480 V600 M633 480 V600")
+                    .stroke(ink.opacity(0.35), lineWidth: line * 0.25)
             }
-            .offset(y: size * 0.2)
-
-            // Blush circles
-            HStack(spacing: size * 0.5) {
-                Ellipse()
-                    .fill(Color.white.opacity(0.25))
-                    .frame(width: size * 0.15, height: size * 0.07)
-                Ellipse()
-                    .fill(Color.white.opacity(0.25))
-                    .frame(width: size * 0.15, height: size * 0.07)
-            }
-            .offset(y: size * 0.32)
-
-            // Sparkle top-right
-            SparkleView(size: size * 0.1)
-                .offset(x: size * 0.3, y: -size * 0.3)
-                .opacity(floating ? 0.8 : 0.3)
-        }
-        .offset(y: floating ? -size * 0.038 : size * 0.038)
-        .animation(
-            animated
-                ? .easeInOut(duration: 1.9).repeatForever(autoreverses: true)
-                : .none,
-            value: floating
-        )
-        .onAppear {
-            guard animated else { return }
-            floating = true
-            scheduleBlink()
-        }
-    }
-
-    private func scheduleBlink() {
-        let delay = Double.random(in: 2.5...4.5)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            withAnimation(.easeInOut(duration: 0.10)) { blinking = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) {
-                withAnimation(.easeInOut(duration: 0.10)) { blinking = false }
-                scheduleBlink()
-            }
-        }
-    }
-}
-
-// MARK: - Eye
-
-private struct MascotEye: View {
-    let outerSize: CGFloat
-    let blinking: Bool
-
-    var body: some View {
-        ZStack {
-            // White of eye
-            Ellipse()
-                .fill(Color.white)
-                .frame(width: outerSize, height: blinking ? outerSize * 0.12 : outerSize * 1.25)
-
-            if !blinking {
-                // Pupil
-                Circle()
-                    .fill(Color.cfBlue)
-                    .frame(width: outerSize * 0.65, height: outerSize * 0.65)
-                    .offset(x: outerSize * 0.08, y: outerSize * 0.05)
-
-                // Shine dot
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: outerSize * 0.22, height: outerSize * 0.22)
-                    .offset(x: -outerSize * 0.08, y: -outerSize * 0.16)
-            }
-        }
-        .animation(.easeInOut(duration: 0.1), value: blinking)
-    }
-}
-
-// MARK: - Smile
-
-private struct MascotSmile: Shape {
-    let width: CGFloat
-    let height: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: 0, y: 0))
-        p.addQuadCurve(
-            to: CGPoint(x: width, y: 0),
-            control: CGPoint(x: width / 2, y: height)
-        )
-        return p
-    }
-}
-
-// MARK: - Droplet body shape
-
-private struct DropletBodyShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height, cx = rect.midX
-        var p = Path()
-        // Tip at top
-        p.move(to: CGPoint(x: cx, y: 0))
-        // Right outward curve
-        p.addCurve(
-            to: CGPoint(x: w, y: h * 0.66),
-            control1: CGPoint(x: cx + w * 0.46, y: h * 0.1),
-            control2: CGPoint(x: w, y: h * 0.46)
-        )
-        // Bottom right arc
-        p.addQuadCurve(
-            to: CGPoint(x: cx, y: h),
-            control: CGPoint(x: w, y: h)
-        )
-        // Bottom left arc
-        p.addQuadCurve(
-            to: CGPoint(x: 0, y: h * 0.66),
-            control: CGPoint(x: 0, y: h)
-        )
-        // Left inward curve back to tip
-        p.addCurve(
-            to: CGPoint(x: cx, y: 0),
-            control1: CGPoint(x: 0, y: h * 0.46),
-            control2: CGPoint(x: cx - w * 0.46, y: h * 0.1)
-        )
-        p.closeSubpath()
-        return p
-    }
-}
-
-// MARK: - Sparkle
-
-private struct SparkleView: View {
-    let size: CGFloat
-    @State private var rotating = false
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<4) { i in
-                Capsule()
-                    .fill(Color.white.opacity(0.9))
-                    .frame(width: size * 0.18, height: size * 0.8)
-                    .rotationEffect(.degrees(Double(i) * 45))
+            .clipShape(SVGShape(d: Self.mouth))
+            SVGShape(d: Self.mouth).stroke(ink, style: StrokeStyle(lineWidth: line, lineJoin: .round))
+            SVGShape(d: Self.lower).fill(Color.cfLip)
+            SVGShape(d: Self.lower).stroke(ink, style: StrokeStyle(lineWidth: line, lineJoin: .round))
+            SVGShape(d: Self.upper).fill(Color.cfLip)
+            SVGShape(d: Self.upper).stroke(ink, style: StrokeStyle(lineWidth: line, lineJoin: .round))
+            // Lipstick shine
+            SVGShape(d: "M290 440 Q330 405 372 425 Q330 445 290 440 Z").fill(.white.opacity(0.9))
+            SVGShape(d: "M520 815 Q590 800 668 812 Q590 830 520 815 Z").fill(.white.opacity(0.8))
+            // Yap marks
+            ForEach(0..<2, id: \.self) { side in
+                SVGShape(d: side == 0
+                         ? "M150 280 Q110 250 120 200 M104 350 Q54 330 56 270"
+                         : "M874 280 Q914 250 904 200 M920 350 Q970 330 968 270")
+                    .stroke(Color.cfLilac, style: StrokeStyle(lineWidth: line, lineCap: .round))
+                    .opacity(yapping ? 1 : 0.35)
             }
         }
         .frame(width: size, height: size)
-        .rotationEffect(.degrees(rotating ? 180 : 0))
-        .animation(.linear(duration: 4).repeatForever(autoreverses: false), value: rotating)
-        .onAppear { rotating = true }
+        .scaleEffect(x: 1, y: yapping ? 1.05 : 0.97, anchor: .center)
+        .rotationEffect(.degrees(yapping ? 1.5 : -1.5))
+        .animation(animated ? .easeInOut(duration: 0.45).repeatForever(autoreverses: true) : .none, value: yapping)
+        .onAppear { if animated { yapping = true } }
+        .accessibilityHidden(true)
     }
 }
 
@@ -213,14 +124,14 @@ struct MascotEmptyState: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            DropletMascot(size: 110)
+            YapMascot(size: 190)
 
             VStack(spacing: 8) {
                 Text(headline)
-                    .font(.title3.weight(.bold))
+                    .font(.title3.weight(.heavy))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.cfCyan, .cfBlue],
+                            colors: [.cfLip, .cfBerry],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -237,7 +148,7 @@ struct MascotEmptyState: View {
             if let label = actionLabel, let act = action {
                 Button(label, action: act)
                     .cfPillBackground(padding: 20, v: 12)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.bold))
             }
         }
         .frame(maxWidth: .infinity)

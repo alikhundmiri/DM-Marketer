@@ -30,7 +30,6 @@ struct ChatView: View {
             }
 
             // Model status banner
-            modelStatusBanner
 
             // Chat messages
             messagesScrollView
@@ -51,11 +50,7 @@ struct ChatView: View {
             guard isLoaded, chat.messages.isEmpty, !viewModel.isGenerating else { return }
             viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
         }
-        .onChange(of: appState.isModelLoading) { _, isLoading in
-            guard !isLoading, appState.isModelLoaded,
-                  chat.messages.isEmpty, !viewModel.isGenerating else { return }
-            viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
-        }
+        .sheet(isPresented: $viewModel.needsPaywall) { PaywallView() }
         .onDisappear {
             viewModel.cancelGeneration()
         }
@@ -87,74 +82,14 @@ struct ChatView: View {
         .background(Color(.systemGray6))
     }
 
-    // MARK: - Model status banner
-
-    @ViewBuilder
-    private var modelStatusBanner: some View {
-        if !chat.sortedMessages.isEmpty {
-            if appState.isModelLoading {
-                HStack(spacing: 10) {
-                    ProgressView().controlSize(.small).tint(.secondary)
-                    Text("Loading \(appState.loadingModelName ?? "model")…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(Color(.systemGray6))
-                Divider()
-            } else if !appState.isModelLoaded {
-                HStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.subheadline)
-                    Text("Model not loaded")
-                        .font(.caption.weight(.medium))
-                    Spacer()
-                    Button("Reload") {
-                        Task { await appState.reloadLastModel() }
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(
-                        LinearGradient(colors: [.cfCyan, .cfBlue],
-                                       startPoint: .leading, endPoint: .trailing),
-                        in: Capsule()
-                    )
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(Color.orange.opacity(0.07))
-                Divider()
-            }
-        }
-    }
-
     // MARK: - Empty state
 
     @ViewBuilder
     private var emptyStateView: some View {
-        if appState.isModelLoading {
-            VStack(spacing: 16) {
-                DropletMascot(size: 90)
-                Text("Loading \(appState.loadingModelName ?? "model")…")
-                    .font(.headline)
-                    .foregroundStyle(
-                        LinearGradient(colors: [.cfCyan, .cfBlue],
-                                       startPoint: .leading, endPoint: .trailing)
-                    )
-                ProgressView()
-                    .tint(.cfCyan)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 48)
-        } else if appState.isModelLoaded {
+        if appState.isModelLoaded {
             MascotEmptyState(
                 headline: "Ready to flow",
-                subheadline: "Your smol AI is loaded and ready to write a cold DM.",
+                subheadline: "Apple Intelligence is ready to write your reply.",
                 actionLabel: "Generate DM",
                 action: {
                     viewModel.autoGenerateFirstDM(chat: chat, topic: topic, context: modelContext)
@@ -162,9 +97,8 @@ struct ChatView: View {
             )
         } else {
             MascotEmptyState(
-                headline: "No model loaded",
-                subheadline: appState.loadModelError
-                    ?? "Go to the Models tab and download a model to get started."
+                headline: "Apple Intelligence is off",
+                subheadline: "Turn it on in Settings to write replies."
             )
         }
     }

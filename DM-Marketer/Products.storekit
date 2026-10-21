@@ -1,0 +1,24 @@
+{
+  "identifier" : "4C1D7A52",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "6745112301",
+      "localizations" : [
+        {
+          "description" : "Unlimited drafts. Pay once.",
+          "displayName" : "DM Marketer Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.alikhundmiri.dm-marketer.unlock",
+      "referenceName" : "Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {},
+  "subscriptionGroups" : [],
+  "version" : { "major" : 4, "minor" : 0 }
+}

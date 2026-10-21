@@ -8,9 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		0A23426A2F8CA3DF00E53B5D /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0A2342602F8CA3DD00E53B5D /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		0A99E4BF2F90382F0004D368 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; };
-		0A99E4C02F90382F0004D368 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		0A99E4C32F9097C30004D368 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A99E4BD2F9038080004D368 /* llama.xcframework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -55,7 +52,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				0A99E4C02F90382F0004D368 /* llama.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -67,7 +63,6 @@
 		0A2342152F8BD7AE00E53B5D /* DM-MarketerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DM-MarketerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A23421F2F8BD7AE00E53B5D /* DM-MarketerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "DM-MarketerUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A2342602F8CA3DD00E53B5D /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		0A99E4BD2F9038080004D368 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = llama.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -106,6 +101,11 @@
 			path = "DM-MarketerUITests";
 			sourceTree = "<group>";
 		};
+		0AC5A0012F95000000E53B5D /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		0A2342612F8CA3DE00E53B5D /* ShareExtension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -121,8 +121,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0A99E4BF2F90382F0004D368 /* llama.xcframework in Frameworks */,
-				0A99E4C32F9097C30004D368 /* llama.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -153,11 +151,11 @@
 		0A2341FD2F8BD7AA00E53B5D = {
 			isa = PBXGroup;
 			children = (
-				0A99E4BD2F9038080004D368 /* llama.xcframework */,
 				0A2342082F8BD7AA00E53B5D /* DM-Marketer */,
 				0A2342182F8BD7AE00E53B5D /* DM-MarketerTests */,
 				0A2342222F8BD7AE00E53B5D /* DM-MarketerUITests */,
 				0A2342612F8CA3DE00E53B5D /* ShareExtension */,
+				0AC5A0012F95000000E53B5D /* Shared */,
 				0A99E4C22F9097C30004D368 /* Frameworks */,
 				0A2342072F8BD7AA00E53B5D /* Products */,
 			);
@@ -201,6 +199,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0A2342082F8BD7AA00E53B5D /* DM-Marketer */,
+				0AC5A0012F95000000E53B5D /* Shared */,
 			);
 			name = "DM-Marketer";
 			packageProductDependencies = (
@@ -269,6 +268,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				0A2342612F8CA3DE00E53B5D /* ShareExtension */,
+				0AC5A0012F95000000E53B5D /* Shared */,
 			);
 			name = ShareExtension;
 			packageProductDependencies = (
@@ -461,7 +461,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -519,7 +519,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -536,13 +536,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "DM-Marketer/DM-Marketer.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				ENABLE_PREVIEWS = YES;
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "DM-Marketer/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -574,13 +574,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "DM-Marketer/DM-Marketer.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				ENABLE_PREVIEWS = YES;
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "DM-Marketer/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -610,10 +610,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alikhundmiri.DM-MarketerTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -632,10 +632,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.alikhundmiri.DM-MarketerTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -653,7 +653,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
@@ -673,7 +673,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
@@ -694,12 +694,12 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -727,12 +727,12 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 93K7NCG9TB;
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
