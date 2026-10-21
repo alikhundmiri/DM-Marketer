@@ -29,6 +29,7 @@ struct DM_MarketerApp: App {
         WindowGroup {
             ContentView()
                 .environment(appState)
+                .fontDesign(.rounded)
                 .environment(purchaseStore)
                 .onOpenURL { url in
                     handleIncomingURL(url)

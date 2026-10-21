@@ -3,22 +3,24 @@ import SwiftUI
 // MARK: - Brand colors
 
 extension Color {
-    /// #00CED1 — "flow" cyan. CTAs, active states, movement indicators.
-    static let cfCyan = Color(red: 0 / 255, green: 206 / 255, blue: 209 / 255)
-    /// #0891B2 — trust blue. Stability, background automation.
-    static let cfBlue = Color(red: 8 / 255, green: 145 / 255, blue: 178 / 255)
-    /// Light tint for backgrounds and cards.
-    static let cfSurface = Color(red: 0.96, green: 0.99, blue: 1.0)
+    /// #FF2D4B — lipstick red. CTAs, active states, accents.
+    static let cfLip = Color(red: 255 / 255, green: 45 / 255, blue: 75 / 255)
+    /// #E0267F — berry. Deeper end of the brand gradient.
+    static let cfBerry = Color(red: 224 / 255, green: 38 / 255, blue: 127 / 255)
+    /// #8F6BFF — lilac. The icon's background; used for secondary marks.
+    static let cfLilac = Color(red: 143 / 255, green: 107 / 255, blue: 255 / 255)
+    /// Light lilac tint for backgrounds and cards.
+    static let cfSurface = Color(red: 0.97, green: 0.95, blue: 1.0)
 }
 
 // MARK: - Gradients
 
 extension LinearGradient {
-    /// Primary brand gradient — cyan top-left to blue bottom-right.
+    /// Primary brand gradient — lipstick red top-left to berry bottom-right.
     static let cfPrimary = LinearGradient(
         stops: [
-            .init(color: .cfCyan, location: 0),
-            .init(color: .cfBlue, location: 1),
+            .init(color: .cfLip, location: 0),
+            .init(color: .cfBerry, location: 1),
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -27,8 +29,8 @@ extension LinearGradient {
     /// Vertical flow gradient (for tall elements like bubbles).
     static let cfFlow = LinearGradient(
         stops: [
-            .init(color: .cfCyan, location: 0),
-            .init(color: .cfBlue, location: 1),
+            .init(color: .cfLip, location: 0),
+            .init(color: .cfBerry, location: 1),
         ],
         startPoint: .top,
         endPoint: .bottom
@@ -38,7 +40,7 @@ extension LinearGradient {
 // MARK: - Shape helpers
 
 extension View {
-    /// Pill shape with the ColdFlow gradient background.
+    /// Pill shape with the SlydeBack gradient background.
     func cfPillBackground(padding h: CGFloat = 14, v: CGFloat = 10) -> some View {
         self
             .padding(.horizontal, h)
@@ -52,7 +54,7 @@ extension View {
         self.background(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(Color.cfSurface)
-                .shadow(color: Color.cfCyan.opacity(0.08), radius: 12, y: 4)
+                .shadow(color: Color.cfLip.opacity(0.08), radius: 12, y: 4)
         )
     }
 }

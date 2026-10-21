@@ -24,14 +24,14 @@ struct OnboardingView: View {
             TabView(selection: $page) {
                 infoPage(
                     mascot: true,
-                    title: "Reply to the right post in 20 seconds",
-                    text: "Find someone with a problem you solve. Share their post to DM Marketer. Get a reply that sounds like you."
+                    title: "Slide back in 20 seconds",
+                    text: "Find someone with a problem you solve. Share their post to SlydeBack. Get a reply that sounds like you."
                 ).tag(0)
 
                 infoPage(
                     icon: "square.and.arrow.up",
                     title: "It lives in your share sheet",
-                    text: "In X or Safari, tap Share, then DM Marketer. If you don't see it, scroll right, tap More, and pin it. Copy the draft, then paste it into your reply."
+                    text: "In X or Safari, tap Share, then SlydeBack. If you don't see it, scroll right, tap More, and pin it. Copy the draft, then paste it into your reply."
                 ).tag(1)
 
                 infoPage(
@@ -58,6 +58,7 @@ struct OnboardingView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
         }
+        .background(Color.cfLilac.opacity(0.18).ignoresSafeArea())
     }
 
     // MARK: Pages
@@ -66,11 +67,11 @@ struct OnboardingView: View {
         VStack(spacing: 20) {
             Spacer()
             if mascot {
-                DropletMascot(size: 110)
+                YapMascot(size: 230)
             } else {
                 Image(systemName: icon)
                     .font(.system(size: 60))
-                    .foregroundStyle(Color.cfCyan)
+                    .foregroundStyle(Color.cfLip)
             }
             Text(title)
                 .font(.title.weight(.bold))

@@ -542,7 +542,7 @@
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "DM-Marketer/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -580,7 +580,7 @@
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "DM-Marketer/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -699,7 +699,7 @@
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -732,7 +732,7 @@
 				EXPLICITLY_BUILT_MODULES = No;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "DM Marketer";
+				INFOPLIST_KEY_CFBundleDisplayName = "SlydeBack";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

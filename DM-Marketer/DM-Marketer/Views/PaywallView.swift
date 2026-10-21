@@ -10,8 +10,8 @@ struct PaywallView: View {
         NavigationStack {
             VStack(spacing: 20) {
                 Spacer()
-                DropletMascot(size: 90)
-                Text(DraftQuota.remaining == 0 ? "You've used your free drafts" : "Unlock DM Marketer")
+                YapMascot(size: 180)
+                Text(DraftQuota.remaining == 0 ? "You've used your free drafts" : "Unlock SlydeBack")
                     .font(.title.weight(.bold))
                     .multilineTextAlignment(.center)
                 VStack(alignment: .leading, spacing: 10) {
@@ -46,6 +46,7 @@ struct PaywallView: View {
                     .font(.subheadline)
             }
             .padding(24)
+            .background(Color.cfLilac.opacity(0.18).ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Not now") { dismiss() } }
             }

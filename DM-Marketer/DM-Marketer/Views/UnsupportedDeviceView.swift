@@ -7,7 +7,7 @@ struct UnsupportedDeviceView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            DropletMascot(size: 90)
+            YapMascot(size: 200)
             Text(title)
                 .font(.title2.weight(.bold))
                 .multilineTextAlignment(.center)
@@ -25,11 +25,12 @@ struct UnsupportedDeviceView: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.cfLilac.opacity(0.18).ignoresSafeArea())
     }
 
     private var title: String {
         switch reason {
-        case .deviceNotEligible:         "This iPhone can't run DM Marketer"
+        case .deviceNotEligible:         "This iPhone can't run SlydeBack"
         case .appleIntelligenceNotEnabled: "Turn on Apple Intelligence"
         case .modelNotReady:             "Apple Intelligence is still getting ready"
         @unknown default:                "Apple Intelligence isn't available"
@@ -39,7 +40,7 @@ struct UnsupportedDeviceView: View {
     private var message: String {
         switch reason {
         case .deviceNotEligible:
-            "DM Marketer writes with Apple Intelligence, which runs on iPhone 15 Pro and newer. Your messages and context never leave your phone."
+            "SlydeBack writes with Apple Intelligence, which runs on iPhone 15 Pro and newer. Your messages and context never leave your phone."
         case .appleIntelligenceNotEnabled:
             "Go to Settings → Apple Intelligence & Siri and switch it on. Everything stays on your device."
         case .modelNotReady:

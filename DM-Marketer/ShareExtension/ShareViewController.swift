@@ -94,11 +94,11 @@ final class ShareModel {
                 return
             }
             if topics.isEmpty {
-                phase = .failed("Add what you're promoting in DM Marketer first, then share again.")
+                phase = .failed("Add what you're promoting in SlydeBack first, then share again.")
             } else if appleModelReady {
                 await generate()
             } else {
-                phase = .failed("DM Marketer needs Apple Intelligence (iPhone 15 Pro or newer). Open the app to check your device.")
+                phase = .failed("SlydeBack needs Apple Intelligence (iPhone 15 Pro or newer). Open the app to check your device.")
             }
         }
     }
@@ -166,7 +166,7 @@ final class ShareModel {
     func generate() async {
         guard let session, let context, let topic = selectedTopic, !session.isResponding else { return }
         if !countedThisShare, !DraftQuota.canDraft {
-            phase = .failed("You've used your \(DraftQuota.freeLimit) free drafts. Open DM Marketer to unlock unlimited drafts.")
+            phase = .failed("You've used your \(DraftQuota.freeLimit) free drafts. Open SlydeBack to unlock unlimited drafts.")
             return
         }
         SharedTopicStore.lastUsedID = topic.id
@@ -294,7 +294,7 @@ struct ShareSheetView: View {
                     }
                 }
             }
-            .navigationTitle("DM Marketer")
+            .navigationTitle("SlydeBack")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

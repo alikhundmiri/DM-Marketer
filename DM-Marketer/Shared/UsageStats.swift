@@ -37,7 +37,7 @@ nonisolated enum UsageStats {
         let avg = timed == 0 ? 0 : defaults.integer(forKey: "stat-draft-ms") / timed
         let first = (defaults.object(forKey: "stat-first-seen") as? Date).map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "-"
         return """
-        DM Marketer test stats
+        SlydeBack test stats
         First opened: \(first)
         Active days: \((defaults.stringArray(forKey: "stat-active-days") ?? []).count)
         Posts drafted: \(DraftQuota.used)

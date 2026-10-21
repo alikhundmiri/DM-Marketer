@@ -22,7 +22,7 @@ struct TopicsListView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) { QuotaBar() }
-            .navigationTitle("ColdFlow")
+            .navigationTitle("SlydeBack")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 // Second way in, besides the share sheet: Copy link in X, then paste here.
@@ -37,14 +37,14 @@ struct TopicsListView: View {
                         }
                         .labelStyle(.titleAndIcon)
                         .buttonBorderShape(.capsule)
-                        .tint(.cfCyan)
+                        .tint(.cfLip)
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     NavigationLink(destination: EngagementsView()) {
                         Image(systemName: "tray.full")
                             .font(.title3)
-                            .foregroundStyle(Color.cfCyan)
+                            .foregroundStyle(Color.cfLip)
                     }
                     .accessibilityLabel("Replies")
                 }
@@ -55,7 +55,7 @@ struct TopicsListView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
-                            .foregroundStyle(Color.cfCyan)
+                            .foregroundStyle(Color.cfLip)
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -65,7 +65,7 @@ struct TopicsListView: View {
                         Image(systemName: "plus.circle.fill")
                             .font(.title3)
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(Color.cfCyan)
+                            .foregroundStyle(Color.cfLip)
                     }
                 }
             }
@@ -95,7 +95,7 @@ struct TopicsListView: View {
         ScrollView {
             MascotEmptyState(
                 headline: "Flow starts here",
-                subheadline: "Add what you promote. Then share a post to DM Marketer and get a reply written in your voice.",
+                subheadline: "Add what you promote. Then share a post to SlydeBack and get a reply written in your voice.",
                 actionLabel: "Create your first topic",
                 action: { showingNewTopic = true }
             )
