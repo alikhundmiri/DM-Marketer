@@ -61,6 +61,9 @@ final class ShareModel {
     var draft = ""
     var copied = false
     private var countedThisShare = false
+    /// Optional steer from the user, e.g. "show empathy, mention X, then pitch".
+    var hint = ""
+    static let hintLimit = 300
     /// Characters of conversation sent to the model; lowered if the 4,096-token window overflows.
     private var conversationLimit = 3000
 
@@ -172,7 +175,7 @@ final class ShareModel {
         let t0 = Date()
         noteMemory("before generate")
         do {
-            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, topic: topic, context: context, conversationLimit: conversationLimit)) {
+            for try await snapshot in session.streamResponse(to: Self.prompt(kind: kind, topic: topic, context: context, conversationLimit: conversationLimit, hint: hint)) {
                 draft = snapshot.content
             }
             note("generated in \(Int(Date().timeIntervalSince(t0) * 1000))ms")
@@ -239,7 +242,7 @@ final class ShareModel {
     No hashtags, no links, no em dashes. Output only the message text.
     """
 
-    static func prompt(kind: DraftKind, topic: SharedTopic, context: PostContext, conversationLimit: Int) -> String {
+    static func prompt(kind: DraftKind, topic: SharedTopic, context: PostContext, conversationLimit: Int, hint: String) -> String {
         let format: String
         switch kind {
         case .reply: format = "A public reply to the post. Under 240 characters. Add value first; mention the product only if it fits naturally."
@@ -248,10 +251,12 @@ final class ShareModel {
         }
         let voice = VoiceCardStore.text.trimmingCharacters(in: .whitespacesAndNewlines)
         let voiceSection = voice.isEmpty ? "" : "\nMY VOICE (write the way I write):\n\(voice)\n"
+        let steer = hint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hintSection = steer.isEmpty ? "" : "\nDIRECTION FROM ME (follow this when writing):\n\(steer.prefix(hintLimit))\n"
         return """
         PRODUCT:
         \(topic.promptText)
-        \(voiceSection)
+        \(voiceSection)\(hintSection)
         CONVERSATION:
         \(context.promptText.prefix(conversationLimit))
 
@@ -346,6 +351,19 @@ struct ShareSheetView: View {
                 .disabled(share.phase != .drafted || share.copied)
                 Button("Write another version") { share.regenerate() }
                     .disabled(share.phase != .drafted)
+            }
+            Section {
+                TextField("e.g. show empathy, mention X and Y, then pitch", text: $share.hint, axis: .vertical)
+                    .lineLimit(1...4)
+                    .onChange(of: share.hint) { _, new in
+                        if new.count > ShareModel.hintLimit { share.hint = String(new.prefix(ShareModel.hintLimit)) }
+                    }
+                Button("Write with this direction") { share.regenerate() }
+                    .disabled(share.phase != .drafted || share.hint.trimmingCharacters(in: .whitespaces).isEmpty)
+            } header: {
+                Text("Steer the reply")
+            } footer: {
+                Text("\(share.hint.count)/\(ShareModel.hintLimit)")
             }
 
         case .failed(let message):
